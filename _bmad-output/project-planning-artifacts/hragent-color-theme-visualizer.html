@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HRAgent Color Theme Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1a1a1a;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            color: #666;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .themes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .theme-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .theme-header {
+            margin-bottom: 1.5rem;
+        }
+        
+        .theme-name {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .theme-description {
+            color: #666;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .color-swatch {
+            text-align: center;
+        }
+        
+        .color-box {
+            height: 80px;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .color-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: #333;
+        }
+        
+        .color-value {
+            font-size: 0.7rem;
+            color: #999;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .ui-preview {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        
+        .preview-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #666;
+        }
+        
+        .chat-preview {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .chat-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+        }
+        
+        .chat-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+        
+        .chat-message.user {
+            background: #f5f5f5;
+            text-align: right;
+        }
+        
+        .chat-message.assistant {
+            border: 1px solid;
+        }
+        
+        .confirmation-card {
+            border: 2px solid;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .card-content {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 1rem;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.9rem;
+            flex: 1;
+        }
+        
+        .btn-primary {
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: white;
+            border: 2px solid;
+        }
+        
+        .recommendation {
+            background: #fff9e6;
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin-top: 2rem;
+            border-radius: 4px;
+        }
+        
+        .recommendation strong {
+            color: #d97706;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 HRAgent Color Theme Visualizer</h1>
+            <p>Explore color directions based on HRAgent's emotional goals: <strong>delighted relief</strong>, <strong>conversational intelligence</strong>, and <strong>professional trust</strong>.</p>
+        </div>
+        
+        <div class="themes-grid">
+            <!-- Theme 1: Warm Professional -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #10b981;">Theme 1: Warm Professional</div>
+                    <div class="theme-description">
+                        Balances approachability with enterprise credibility. Warm greens evoke growth and relief, while neutral grays maintain professional context. Best for creating "delighted relief" without sacrificing trust.
+                    </div>
+                </div>
+                
+                <div class="color-palette">
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #10b981;"></div>
+                        <div class="color-label">Primary</div>
+                        <div class="color-value">#10b981</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #0ea5e9;"></div>
+                        <div class="color-label">Secondary</div>
+                        <div class="color-value">#0ea5e9</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #1e293b;"></div>
+                        <div class="color-label">Text</div>
+                        <div class="color-value">#1e293b</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #f8fafc;"></div>
+                        <div class="color-label">Background</div>
+                        <div class="color-value">#f8fafc</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #f59e0b;"></div>
+                        <div class="color-label">Warning</div>
+                        <div class="color-value">#f59e0b</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #ef4444;"></div>
+                        <div class="color-label">Error</div>
+                        <div class="color-value">#ef4444</div>
+                    </div>
+                </div>
+                
+                <div class="ui-preview">
+                    <div class="preview-title">UI Preview</div>
+                    <div class="chat-preview">
+                        <input type="text" class="chat-input" placeholder="log my hours like last week" 
+                               style="border-color: #10b981; color: #1e293b;">
+                        <div class="chat-message user">log my hours like last week</div>
+                        <div class="chat-message assistant" style="border-color: #e2e8f0; background: #f8fafc; color: #1e293b;">
+                            <div class="confirmation-card" style="border-color: #10b981;">
+                                <div class="card-title" style="color: #10b981;">
+                                    <span>✓</span> I understood: Log timesheet for Dec 18-22
+                                </div>
+                                <div class="card-content">
+                                    Monday-Friday: 8 hrs/day<br>
+                                    Projects: Marketing Campaign (36 hrs), Budget Review (2 hrs), Team Meeting (2 hrs)<br>
+                                    Total: 40 hours
+                                </div>
+                                <div class="button-group">
+                                    <button class="btn btn-primary" style="background: #10b981;">✓ Confirm & Submit</button>
+                                    <button class="btn btn-secondary" style="border-color: #cbd5e1; color: #64748b;">✏️ Edit</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Theme 2: Modern Intelligence -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #6366f1;">Theme 2: Modern Intelligence</div>
+                    <div class="theme-description">
+                        Tech-forward indigo conveys AI sophistication and innovation. Clean, minimalist aesthetic aligns with modern conversational AI expectations (ChatGPT, Copilot). Best for emphasizing "intelligent assistance."
+                    </div>
+                </div>
+                
+                <div class="color-palette">
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #6366f1;"></div>
+                        <div class="color-label">Primary</div>
+                        <div class="color-value">#6366f1</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #8b5cf6;"></div>
+                        <div class="color-label">Secondary</div>
+                        <div class="color-value">#8b5cf6</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #0f172a;"></div>
+                        <div class="color-label">Text</div>
+                        <div class="color-value">#0f172a</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #fafafa;"></div>
+                        <div class="color-label">Background</div>
+                        <div class="color-value">#fafafa</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #f59e0b;"></div>
+                        <div class="color-label">Warning</div>
+                        <div class="color-value">#f59e0b</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #ef4444;"></div>
+                        <div class="color-label">Error</div>
+                        <div class="color-value">#ef4444</div>
+                    </div>
+                </div>
+                
+                <div class="ui-preview">
+                    <div class="preview-title">UI Preview</div>
+                    <div class="chat-preview">
+                        <input type="text" class="chat-input" placeholder="log my hours like last week" 
+                               style="border-color: #6366f1; color: #0f172a;">
+                        <div class="chat-message user">log my hours like last week</div>
+                        <div class="chat-message assistant" style="border-color: #e5e7eb; background: #fafafa; color: #0f172a;">
+                            <div class="confirmation-card" style="border-color: #6366f1;">
+                                <div class="card-title" style="color: #6366f1;">
+                                    <span>✓</span> I understood: Log timesheet for Dec 18-22
+                                </div>
+                                <div class="card-content">
+                                    Monday-Friday: 8 hrs/day<br>
+                                    Projects: Marketing Campaign (36 hrs), Budget Review (2 hrs), Team Meeting (2 hrs)<br>
+                                    Total: 40 hours
+                                </div>
+                                <div class="button-group">
+                                    <button class="btn btn-primary" style="background: #6366f1;">✓ Confirm & Submit</button>
+                                    <button class="btn btn-secondary" style="border-color: #d1d5db; color: #6b7280;">✏️ Edit</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Theme 3: Calm Trust -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #0ea5e9;">Theme 3: Calm Trust</div>
+                    <div class="theme-description">
+                        Serene blues communicate reliability, stability, and calm—reducing stress around admin tasks. Establishes trust through familiar, banking/enterprise-grade visual language. Best for risk-averse organizations.
+                    </div>
+                </div>
+                
+                <div class="color-palette">
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #0ea5e9;"></div>
+                        <div class="color-label">Primary</div>
+                        <div class="color-value">#0ea5e9</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #06b6d4;"></div>
+                        <div class="color-label">Secondary</div>
+                        <div class="color-value">#06b6d4</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #1e293b;"></div>
+                        <div class="color-label">Text</div>
+                        <div class="color-value">#1e293b</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #f1f5f9;"></div>
+                        <div class="color-label">Background</div>
+                        <div class="color-value">#f1f5f9</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #f59e0b;"></div>
+                        <div class="color-label">Warning</div>
+                        <div class="color-value">#f59e0b</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #ef4444;"></div>
+                        <div class="color-label">Error</div>
+                        <div class="color-value">#ef4444</div>
+                    </div>
+                </div>
+                
+                <div class="ui-preview">
+                    <div class="preview-title">UI Preview</div>
+                    <div class="chat-preview">
+                        <input type="text" class="chat-input" placeholder="log my hours like last week" 
+                               style="border-color: #0ea5e9; color: #1e293b;">
+                        <div class="chat-message user">log my hours like last week</div>
+                        <div class="chat-message assistant" style="border-color: #e2e8f0; background: #f1f5f9; color: #1e293b;">
+                            <div class="confirmation-card" style="border-color: #0ea5e9;">
+                                <div class="card-title" style="color: #0ea5e9;">
+                                    <span>✓</span> I understood: Log timesheet for Dec 18-22
+                                </div>
+                                <div class="card-content">
+                                    Monday-Friday: 8 hrs/day<br>
+                                    Projects: Marketing Campaign (36 hrs), Budget Review (2 hrs), Team Meeting (2 hrs)<br>
+                                    Total: 40 hours
+                                </div>
+                                <div class="button-group">
+                                    <button class="btn btn-primary" style="background: #0ea5e9;">✓ Confirm & Submit</button>
+                                    <button class="btn btn-secondary" style="border-color: #cbd5e1; color: #64748b;">✏️ Edit</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Theme 4: Vibrant Energy -->
+            <div class="theme-card">
+                <div class="theme-header">
+                    <div class="theme-name" style="color: #06b6d4;">Theme 4: Vibrant Energy</div>
+                    <div class="theme-description">
+                        Energetic cyan/teal creates sense of forward momentum and innovation. Playful yet professional—signals "this is different from boring HR portals." Best for younger workforces or creative industries.
+                    </div>
+                </div>
+                
+                <div class="color-palette">
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #06b6d4;"></div>
+                        <div class="color-label">Primary</div>
+                        <div class="color-value">#06b6d4</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #14b8a6;"></div>
+                        <div class="color-label">Secondary</div>
+                        <div class="color-value">#14b8a6</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #0f172a;"></div>
+                        <div class="color-label">Text</div>
+                        <div class="color-value">#0f172a</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #ffffff;"></div>
+                        <div class="color-label">Background</div>
+                        <div class="color-value">#ffffff</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #f59e0b;"></div>
+                        <div class="color-label">Warning</div>
+                        <div class="color-value">#f59e0b</div>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="color-box" style="background: #ef4444;"></div>
+                        <div class="color-label">Error</div>
+                        <div class="color-value">#ef4444</div>
+                    </div>
+                </div>
+                
+                <div class="ui-preview">
+                    <div class="preview-title">UI Preview</div>
+                    <div class="chat-preview">
+                        <input type="text" class="chat-input" placeholder="log my hours like last week" 
+                               style="border-color: #06b6d4; color: #0f172a;">
+                        <div class="chat-message user">log my hours like last week</div>
+                        <div class="chat-message assistant" style="border-color: #e5e7eb; background: #fafafa; color: #0f172a;">
+                            <div class="confirmation-card" style="border-color: #06b6d4;">
+                                <div class="card-title" style="color: #06b6d4;">
+                                    <span>✓</span> I understood: Log timesheet for Dec 18-22
+                                </div>
+                                <div class="card-content">
+                                    Monday-Friday: 8 hrs/day<br>
+                                    Projects: Marketing Campaign (36 hrs), Budget Review (2 hrs), Team Meeting (2 hrs)<br>
+                                    Total: 40 hours
+                                </div>
+                                <div class="button-group">
+                                    <button class="btn btn-primary" style="background: #06b6d4;">✓ Confirm & Submit</button>
+                                    <button class="btn btn-secondary" style="border-color: #d1d5db; color: #6b7280;">✏️ Edit</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="recommendation">
+            <strong>💡 Recommendation:</strong> Theme 1 (Warm Professional) best balances HRAgent's emotional goals. Green evokes "relief" and "success" while maintaining enterprise credibility. It differentiates from traditional blue HR portals while avoiding the "too playful" risk of vibrant themes. Secondary blue provides accent versatility for informational states.
+        </div>
+    </div>
+</body>
+</html>

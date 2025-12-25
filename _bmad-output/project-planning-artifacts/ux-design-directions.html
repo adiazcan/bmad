@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HRAgent Design Direction Mockups</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem 2rem;
+            z-index: 1000;
+            border-bottom: 1px solid #333;
+        }
+        
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 0.95rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .nav-links a.active {
+            background: #10b981;
+            font-weight: 500;
+        }
+        
+        .container {
+            padding-top: 100px;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding-left: 2rem;
+            padding-right: 2rem;
+            padding-bottom: 4rem;
+        }
+        
+        .intro {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        
+        .intro h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .intro p {
+            font-size: 1.1rem;
+            color: #999;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        .direction-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(700px, 1fr));
+            gap: 3rem;
+            margin-top: 3rem;
+        }
+        
+        .direction-card {
+            background: #2a2a2a;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #333;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .direction-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .direction-header {
+            padding: 2rem;
+            background: #222;
+            border-bottom: 1px solid #333;
+        }
+        
+        .direction-number {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        
+        .direction-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        
+        .direction-description {
+            color: #999;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        .direction-tags {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        
+        .tag {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        
+        .mockup-container {
+            padding: 2rem;
+            background: #f8fafc;
+            min-height: 600px;
+        }
+        
+        /* Design Direction Specific Styles */
+        
+        /* Direction 1: Clean Minimalist */
+        .direction-1 .chat-container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .direction-1 .chat-input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            margin-bottom: 2rem;
+            transition: border-color 0.2s;
+        }
+        
+        .direction-1 .chat-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+        
+        .direction-1 .message {
+            margin-bottom: 1.5rem;
+        }
+        
+        .direction-1 .message.user {
+            text-align: right;
+        }
+        
+        .direction-1 .message-content {
+            display: inline-block;
+            padding: 0.875rem 1.25rem;
+            border-radius: 12px;
+            max-width: 80%;
+        }
+        
+        .direction-1 .message.user .message-content {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+        
+        .direction-1 .confirmation-card {
+            background: white;
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: inline-block;
+            text-align: left;
+            max-width: 90%;
+        }
+        
+        .direction-1 .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #10b981;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+        }
+        
+        .direction-1 .card-body {
+            color: #64748b;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            margin-bottom: 1.25rem;
+        }
+        
+        .direction-1 .button-group {
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .direction-1 .btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .direction-1 .btn-primary {
+            background: #10b981;
+            color: white;
+        }
+        
+        .direction-1 .btn-primary:hover {
+            background: #059669;
+        }
+        
+        .direction-1 .btn-secondary {
+            background: white;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
+        }
+        
+        /* Direction 2: Rich Dashboard */
+        .direction-2 {
+            display: flex;
+            height: 600px;
+        }
+        
+        .direction-2 .sidebar {
+            width: 250px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            padding: 1.5rem;
+        }
+        
+        .direction-2 .sidebar-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+        
+        .direction-2 .history-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #64748b;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .direction-2 .history-item:hover {
+            background: #f8fafc;
+        }
+        
+        .direction-2 .history-item.active {
+            background: #f0fdf4;
+            color: #10b981;
+            font-weight: 500;
+        }
+        
+        .direction-2 .main-area {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+        
+        .direction-2 .stats-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .direction-2 .stat-card {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .direction-2 .stat-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 0.25rem;
+        }
+        
+        .direction-2 .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        /* Direction 3: Conversational Focus */
+        .direction-3 .chat-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        
+        .direction-3 .app-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .direction-3 .app-title {
+            font-size: 1.5rem;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .direction-3 .app-subtitle {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        
+        .direction-3 .suggestions {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .direction-3 .suggestion-chip {
+            padding: 0.5rem 1rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .direction-3 .suggestion-chip:hover {
+            background: #10b981;
+            color: white;
+            border-color: #10b981;
+        }
+        
+        /* Direction 4: Compact Power User */
+        .direction-4 .interface {
+            background: white;
+            border-radius: 12px;
+            max-width: 900px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+        }
+        
+        .direction-4 .quick-actions {
+            background: #f8fafc;
+            padding: 1.5rem 1rem;
+            border-right: 1px solid #e2e8f0;
+            border-radius: 12px 0 0 12px;
+        }
+        
+        .direction-4 .quick-action {
+            padding: 0.625rem 0.875rem;
+            margin-bottom: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .direction-4 .quick-action:hover {
+            background: white;
+            color: #10b981;
+        }
+        
+        .direction-4 .chat-area {
+            padding: 1.5rem;
+        }
+        
+        .direction-4 .compact-input {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .direction-4 .compact-input input {
+            flex: 1;
+            padding: 0.625rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .direction-4 .compact-input button {
+            padding: 0.625rem 1.25rem;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        
+        /* Direction 5: Mobile-First */
+        .direction-5 .mobile-view {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            padding: 1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            min-height: 700px;
+        }
+        
+        .direction-5 .mobile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding: 0.5rem;
+        }
+        
+        .direction-5 .mobile-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .direction-5 .mobile-menu {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        .direction-5 .bottom-input {
+            position: relative;
+            margin-top: auto;
+            padding-top: 1rem;
+        }
+        
+        .direction-5 .bottom-input input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+        }
+        
+        /* Direction 6: Card-Based Layout */
+        .direction-6 .card-layout {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .direction-6 .action-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 2px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .direction-6 .action-card:hover {
+            border-color: #10b981;
+            transform: translateY(-2px);
+        }
+        
+        .direction-6 .card-icon {
+            width: 48px;
+            height: 48px;
+            background: #f0fdf4;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+        
+        .direction-6 .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .direction-6 .card-description {
+            font-size: 0.9rem;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        
+        .comparison {
+            margin-top: 4rem;
+            padding: 3rem;
+            background: #222;
+            border-radius: 16px;
+            border: 1px solid #333;
+        }
+        
+        .comparison h3 {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+        
+        .comparison-item {
+            background: #2a2a2a;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #333;
+        }
+        
+        .comparison-item h4 {
+            color: #10b981;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+        
+        .comparison-list {
+            list-style: none;
+        }
+        
+        .comparison-list li {
+            padding: 0.5rem 0;
+            color: #999;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #333;
+        }
+        
+        .comparison-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .comparison-list strong {
+            color: #fff;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-content">
+            <h1>🎨 HRAgent Design Directions</h1>
+            <div class="nav-links">
+                <a href="#direction-1">Direction 1</a>
+                <a href="#direction-2">Direction 2</a>
+                <a href="#direction-3">Direction 3</a>
+                <a href="#direction-4">Direction 4</a>
+                <a href="#direction-5">Direction 5</a>
+                <a href="#direction-6">Direction 6</a>
+                <a href="#comparison">Compare</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="intro">
+            <h2>Design Direction Explorations</h2>
+            <p>Each mockup below represents a complete visual direction for HRAgent, applying our emerald green color system, Inter typography, and airy spacing in different ways. Explore different layout approaches, interaction patterns, and density levels to find what best supports the "10-second task completion" goal.</p>
+        </div>
+
+        <div class="direction-grid">
+            <!-- Direction 1: Clean Minimalist -->
+            <div class="direction-card" id="direction-1">
+                <div class="direction-header">
+                    <span class="direction-number">Direction 1</span>
+                    <h3 class="direction-title">Clean Minimalist</h3>
+                    <p class="direction-description">
+                        Pure conversational focus with maximum breathing room. No chrome, no sidebars—just user and assistant exchanging messages. Confirmation cards float in conversation with generous padding and clear visual hierarchy.
+                    </p>
+                    <div class="direction-tags">
+                        <span class="tag">Chat-First</span>
+                        <span class="tag">Airy Spacing</span>
+                        <span class="tag">Simple</span>
+                        <span class="tag">Mobile-Optimized</span>
+                    </div>
+                </div>
+                <div class="mockup-container direction-1">
+                    <div class="chat-container">
+                        <input type="text" class="chat-input" placeholder="Try: 'log my hours' or 'I need Friday off'">
+                        <div class="message user">
+                            <div class="message-content">log my hours like last week</div>
+                        </div>
+                        <div class="message assistant">
+                            <div class="confirmation-card">
+                                <div class="card-header">
+                                    <span>✓</span>
+                                    <span>I understood: Log timesheet for Dec 18-22, 2025</span>
+                                </div>
+                                <div class="card-body">
+                                    <strong style="color: #1e293b;">Monday-Friday: 8 hrs/day</strong><br><br>
+                                    <strong style="color: #1e293b;">Projects:</strong><br>
+                                    🎯 Marketing Campaign (36 hrs)<br>
+                                    💰 Budget Review (2 hrs Tue)<br>
+                                    👥 Team Meeting (2 hrs Fri)<br><br>
+                                    <strong style="color: #1e293b;">Total: 40 hours</strong>
+                                </div>
+                                <div class="button-group">
+                                    <button class="btn btn-primary">✓ Confirm & Submit</button>
+                                    <button class="btn btn-secondary">✏️ Edit</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direction 2: Rich Dashboard -->
+            <div class="direction-card" id="direction-2">
+                <div class="direction-header">
+                    <span class="direction-number">Direction 2</span>
+                    <h3 class="direction-title">Rich Dashboard</h3>
+                    <p class="direction-description">
+                        Persistent sidebar with history and quick stats. Power users get instant context with previous conversations visible. Stats bar shows PTO balance and pending approvals at a glance. More traditional enterprise app feel.
+                    </p>
+                    <div class="direction-tags">
+                        <span class="tag">Sidebar Navigation</span>
+                        <span class="tag">Context-Rich</span>
+                        <span class="tag">Desktop-First</span>
+                        <span class="tag">Power User</span>
+                    </div>
+                </div>
+                <div class="mockup-container direction-2">
+                    <div class="sidebar">
+                        <div class="sidebar-title">Recent</div>
+                        <div class="history-item active">Timesheet Dec 18-22</div>
+                        <div class="history-item">PTO request approved</div>
+                        <div class="history-item">Policy question</div>
+                        <div class="history-item">Timesheet Dec 11-15</div>
+                    </div>
+                    <div class="main-area">
+                        <div class="stats-bar">
+                            <div class="stat-card">
+                                <div class="stat-label">PTO Balance</div>
+                                <div class="stat-value">12.5 days</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">This Week</div>
+                                <div class="stat-value">40 hrs</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Pending</div>
+                                <div class="stat-value">2</div>
+                            </div>
+                        </div>
+                        <input type="text" class="chat-input" placeholder="What would you like to do?" style="width: 100%; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 12px; margin-bottom: 1.5rem;">
+                        <div style="background: white; border: 2px solid #10b981; border-radius: 12px; padding: 1.5rem;">
+                            <div style="color: #10b981; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>✓</span>
+                                <span>Timesheet ready for approval</span>
+                            </div>
+                            <div style="color: #64748b; font-size: 0.9rem; line-height: 1.7;">
+                                Week of Dec 18-22, 2025<br>
+                                40 hours logged across 3 projects<br>
+                                All calendar meetings accounted for
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direction 3: Conversational Focus -->
+            <div class="direction-card" id="direction-3">
+                <div class="direction-header">
+                    <span class="direction-number">Direction 3</span>
+                    <h3 class="direction-title">Conversational Focus</h3>
+                    <p class="direction-description">
+                        Friendly app header establishes brand identity. Suggestion chips below guide first-time users with discoverable actions. Feels like dedicated chat app (WhatsApp, Messenger) rather than embedded widget. Strong conversational framing.
+                    </p>
+                    <div class="direction-tags">
+                        <span class="tag">Guided Discovery</span>
+                        <span class="tag">Friendly</span>
+                        <span class="tag">Suggestion Chips</span>
+                        <span class="tag">Brand-Forward</span>
+                    </div>
+                </div>
+                <div class="mockup-container direction-3">
+                    <div class="chat-wrapper">
+                        <div class="app-header">
+                            <div class="app-title">HRAgent</div>
+                            <div class="app-subtitle">Your conversational HR assistant</div>
+                        </div>
+                        <div class="suggestions">
+                            <div class="suggestion-chip">💡 Log like last week</div>
+                            <div class="suggestion-chip">🏖️ Request time off</div>
+                            <div class="suggestion-chip">📊 Check PTO balance</div>
+                            <div class="suggestion-chip">❓ Ask about policies</div>
+                        </div>
+                        <input type="text" class="chat-input" placeholder="What can I help you with today?" style="width: 100%; padding: 1rem 1.25rem; border: 2px solid #e2e8f0; border-radius: 12px; margin-bottom: 1.5rem;">
+                        <div style="text-align: right; margin-bottom: 1rem;">
+                            <div style="display: inline-block; background: #f1f5f9; padding: 0.875rem 1.25rem; border-radius: 12px; color: #1e293b;">
+                                log my hours like last week
+                            </div>
+                        </div>
+                        <div style="background: white; border: 2px solid #10b981; border-radius: 12px; padding: 1.5rem;">
+                            <div style="color: #10b981; font-weight: 600; margin-bottom: 1rem;">✓ I understood: Log timesheet for Dec 18-22</div>
+                            <div style="color: #64748b; font-size: 0.9rem; line-height: 1.7; margin-bottom: 1rem;">
+                                Monday-Friday: 8 hrs/day<br>
+                                Marketing Campaign (36 hrs), Budget Review (2 hrs), Team Meeting (2 hrs)<br>
+                                <strong style="color: #1e293b;">Total: 40 hours</strong>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <button style="flex: 1; padding: 0.75rem; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 500; cursor: pointer;">✓ Confirm & Submit</button>
+                                <button style="flex: 1; padding: 0.75rem; background: white; color: #64748b; border: 2px solid #e2e8f0; border-radius: 8px; font-weight: 500; cursor: pointer;">✏️ Edit</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direction 4: Compact Power User -->
+            <div class="direction-card" id="direction-4">
+                <div class="direction-header">
+                    <span class="direction-number">Direction 4</span>
+                    <h3 class="direction-title">Compact Power User</h3>
+                    <p class="direction-description">
+                        Dense, efficient layout for frequent users. Quick action sidebar with one-click shortcuts. Compact spacing maximizes content visibility. Think Linear or Notion—fast, keyboard-friendly, minimal chrome. Optimized for desktop power users.
+                    </p>
+                    <div class="direction-tags">
+                        <span class="tag">Dense Layout</span>
+                        <span class="tag">Quick Actions</span>
+                        <span class="tag">Keyboard-Friendly</span>
+                        <span class="tag">Efficient</span>
+                    </div>
+                </div>
+                <div class="mockup-container direction-4">
+                    <div class="interface">
+                        <div class="quick-actions">
+                            <div class="quick-action">⚡ Quick timesheet</div>
+                            <div class="quick-action">🏖️ Request PTO</div>
+                            <div class="quick-action">📊 View balance</div>
+                            <div class="quick-action">❓ Policies</div>
+                            <div class="quick-action">📜 History</div>
+                            <div class="quick-action">⚙️ Settings</div>
+                        </div>
+                        <div class="chat-area">
+                            <div class="compact-input">
+                                <input type="text" placeholder="Type command or question...">
+                                <button>Send</button>
+                            </div>
+                            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                <div style="color: #64748b; font-size: 0.85rem; margin-bottom: 0.5rem;">You</div>
+                                <div style="color: #1e293b;">log my hours like last week</div>
+                            </div>
+                            <div style="background: white; border: 2px solid #10b981; border-radius: 8px; padding: 1rem;">
+                                <div style="color: #10b981; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.75rem;">✓ Timesheet Dec 18-22</div>
+                                <div style="color: #64748b; font-size: 0.85rem; line-height: 1.6; margin-bottom: 0.75rem;">
+                                    Mon-Fri • 8h/day • 40h total<br>
+                                    Marketing (36h), Budget (2h), Meetings (2h)
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 500; cursor: pointer;">Confirm</button>
+                                    <button style="padding: 0.5rem 1rem; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem; cursor: pointer;">Edit</button>
+                                    <button style="padding: 0.5rem 1rem; background: white; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem; cursor: pointer;">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direction 5: Mobile-First -->
+            <div class="direction-card" id="direction-5">
+                <div class="direction-header">
+                    <span class="direction-number">Direction 5</span>
+                    <h3 class="direction-title">Mobile-First Vertical</h3>
+                    <p class="direction-description">
+                        Optimized for thumb-based mobile interaction. Bottom-anchored input for easy reach. Full-screen mobile UI with rounded corners mimicking native apps. Designed for on-the-go timesheet logging from phone. Progressive web app feel.
+                    </p>
+                    <div class="direction-tags">
+                        <span class="tag">Mobile-Native</span>
+                        <span class="tag">Thumb-Optimized</span>
+                        <span class="tag">Bottom Input</span>
+                        <span class="tag">PWA-Ready</span>
+                    </div>
+                </div>
+                <div class="mockup-container direction-5">
+                    <div class="mobile-view">
+                        <div class="mobile-header">
+                            <div class="mobile-title">HRAgent</div>
+                            <div class="mobile-menu">☰</div>
+                        </div>
+                        <div style="flex: 1; overflow-y: auto; margin-bottom: 1rem;">
+                            <div style="text-align: right; margin-bottom: 1rem;">
+                                <div style="display: inline-block; background: #f1f5f9; padding: 0.875rem 1rem; border-radius: 16px 16px 4px 16px; color: #1e293b; font-size: 0.95rem;">
+                                    log my hours like last week
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <div style="display: inline-block; background: white; border: 2px solid #10b981; border-radius: 16px 16px 16px 4px; padding: 1.25rem; max-width: 90%;">
+                                    <div style="color: #10b981; font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem;">✓ Timesheet Dec 18-22</div>
+                                    <div style="color: #64748b; font-size: 0.85rem; line-height: 1.6; margin-bottom: 1rem;">
+                                        Mon-Fri: 8 hrs/day<br><br>
+                                        🎯 Marketing (36h)<br>
+                                        💰 Budget (2h)<br>
+                                        👥 Meetings (2h)<br><br>
+                                        <strong style="color: #1e293b;">Total: 40 hours</strong>
+                                    </div>
+                                    <button style="width: 100%; padding: 0.875rem; background: #10b981; color: white; border: none; border-radius: 10px; font-weight: 500; font-size: 0.95rem; margin-bottom: 0.5rem;">✓ Confirm & Submit</button>
+                                    <button style="width: 100%; padding: 0.875rem; background: white; color: #64748b; border: 2px solid #e2e8f0; border-radius: 10px; font-weight: 500; font-size: 0.95rem;">✏️ Edit Details</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bottom-input">
+                            <input type="text" placeholder="Type your request...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Direction 6: Card-Based Actions -->
+            <div class="direction-card" id="direction-6">
+                <div class="direction-header">
+                    <span class="direction-number">Direction 6</span>
+                    <h3 class="direction-title">Card-Based Actions</h3>
+                    <p class="direction-description">
+                        Visual grid of action cards for discovery. Each card is a clear entry point to common tasks. Less conversational, more task-oriented. Good for users who prefer visual menus over typing. Combines conversational AI with traditional dashboard navigation.
+                    </p>
+                    <div class="direction-tags">
+                        <span class="tag">Visual Discovery</span>
+                        <span class="tag">Task-Oriented</span>
+                        <span class="tag">Menu-Based</span>
+                        <span class="tag">Hybrid Approach</span>
+                    </div>
+                </div>
+                <div class="mockup-container direction-6">
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <h3 style="color: #1e293b; font-size: 1.5rem; margin-bottom: 0.5rem;">What would you like to do?</h3>
+                        <p style="color: #64748b; font-size: 0.95rem;">Choose an action or type your request below</p>
+                    </div>
+                    <div class="card-layout">
+                        <div class="action-card">
+                            <div class="card-icon">⏱️</div>
+                            <div class="card-title">Log Timesheet</div>
+                            <div class="card-description">Submit hours for this week or copy from previous weeks</div>
+                        </div>
+                        <div class="action-card">
+                            <div class="card-icon">🏖️</div>
+                            <div class="card-title">Request Time Off</div>
+                            <div class="card-description">Submit PTO requests and check your balance</div>
+                        </div>
+                        <div class="action-card">
+                            <div class="card-icon">✅</div>
+                            <div class="card-title">Approve Requests</div>
+                            <div class="card-description">Review and approve team time off requests</div>
+                        </div>
+                        <div class="action-card">
+                            <div class="card-icon">❓</div>
+                            <div class="card-title">Ask Questions</div>
+                            <div class="card-description">Get instant answers about HR policies</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 2rem;">
+                        <input type="text" placeholder="Or type what you need..." style="width: 100%; padding: 1rem 1.25rem; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1rem;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison Section -->
+        <div class="comparison" id="comparison">
+            <h3>📊 Direction Comparison</h3>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h4>Best for Simplicity</h4>
+                    <ul class="comparison-list">
+                        <li><strong>Direction 1</strong> Clean Minimalist - Pure chat, zero cognitive load</li>
+                        <li><strong>Direction 3</strong> Conversational Focus - Guided discovery with suggestions</li>
+                    </ul>
+                </div>
+                <div class="comparison-item">
+                    <h4>Best for Power Users</h4>
+                    <ul class="comparison-list">
+                        <li><strong>Direction 2</strong> Rich Dashboard - History sidebar, stats at a glance</li>
+                        <li><strong>Direction 4</strong> Compact Power User - Dense, keyboard-friendly, quick actions</li>
+                    </ul>
+                </div>
+                <div class="comparison-item">
+                    <h4>Best for Mobile</h4>
+                    <ul class="comparison-list">
+                        <li><strong>Direction 5</strong> Mobile-First - Thumb-optimized, bottom input, native feel</li>
+                        <li><strong>Direction 1</strong> Clean Minimalist - Adapts well to smaller screens</li>
+                    </ul>
+                </div>
+                <div class="comparison-item">
+                    <h4>Best for Discovery</h4>
+                    <ul class="comparison-list">
+                        <li><strong>Direction 6</strong> Card-Based - Visual action grid shows what's possible</li>
+                        <li><strong>Direction 3</strong> Conversational Focus - Suggestion chips guide new users</li>
+                    </ul>
+                </div>
+                <div class="comparison-item">
+                    <h4>Best for Speed</h4>
+                    <ul class="comparison-list">
+                        <li><strong>Direction 4</strong> Compact Power User - Quick actions, minimal clicks</li>
+                        <li><strong>Direction 1</strong> Clean Minimalist - Zero UI chrome, instant focus</li>
+                    </ul>
+                </div>
+                <div class="comparison-item">
+                    <h4>Best for Context</h4>
+                    <ul class="comparison-list">
+                        <li><strong>Direction 2</strong> Rich Dashboard - Stats bar, history sidebar, full context</li>
+                        <li><strong>Direction 6</strong> Card-Based - Clear menu of available actions</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
