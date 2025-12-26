@@ -48,7 +48,10 @@ dotnet run
 
 The backend API will be available at:
 - HTTP: http://localhost:5000
-- OpenAPI: http://localhost:5000/openapi/v1.json (in Development mode)
+- HTTPS: https://localhost:7187
+- OpenAPI Spec: http://localhost:5000/openapi/v1.json (in Development mode)
+
+> **Note:** By default, the "http" profile runs on port 5000 only. The "https" profile enables both HTTP (5000) and HTTPS (7187). You can specify the profile with `dotnet run --launch-profile http` or `dotnet run --launch-profile https`.
 
 ### 3. Frontend Setup
 
@@ -80,6 +83,23 @@ npm run build
 # Production files will be in dist/ folder
 ```
 
+### 5. Run Tests
+
+**Backend Tests:**
+```bash
+cd HRAgent.Api.Tests
+dotnet test
+# Runs 6 integration tests for weather endpoint
+```
+
+**Frontend Tests:**
+```bash
+cd hragent-ui
+npm test
+# Runs Vitest tests (use npm test -- --run for CI mode)
+# Or run with UI: npm run test:ui
+```
+
 ## Project Structure
 
 ```
@@ -104,7 +124,8 @@ bmad/
 
 ## Port Configuration
 
-- **Backend API**: http://localhost:5000
+- **Backend API (HTTP)**: http://localhost:5000
+- **Backend API (HTTPS)**: https://localhost:7187 (optional, use `--launch-profile https`)
 - **Frontend Dev Server**: http://localhost:5173
 
 These ports are configured for .NET Aspire orchestration (to be added in Story 1.2).

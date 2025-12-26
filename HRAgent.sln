@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HRAgent.Api", "HRAgent.Api\HRAgent.Api.csproj", "{F3D7B914-61C1-487B-8D43-BDE569702743}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HRAgent.Api.Tests", "HRAgent.Api.Tests\HRAgent.Api.Tests.csproj", "{0497DAA5-8759-4FE0-96C7-F1F565658A8B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{F3D7B914-61C1-487B-8D43-BDE569702743}.Release|x64.Build.0 = Release|Any CPU
 		{F3D7B914-61C1-487B-8D43-BDE569702743}.Release|x86.ActiveCfg = Release|Any CPU
 		{F3D7B914-61C1-487B-8D43-BDE569702743}.Release|x86.Build.0 = Release|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Debug|x64.Build.0 = Debug|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Debug|x86.Build.0 = Debug|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Release|x64.ActiveCfg = Release|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Release|x64.Build.0 = Release|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Release|x86.ActiveCfg = Release|Any CPU
+		{0497DAA5-8759-4FE0-96C7-F1F565658A8B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
