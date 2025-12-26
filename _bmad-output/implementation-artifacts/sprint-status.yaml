@@ -1,0 +1,142 @@
+# generated: 2025-12-26
+# project: bmad
+# project_key: bmad
+# tracking_system: file-system
+# story_location: /home/adiaz/github/bmad/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2025-12-26
+project: bmad
+project_key: bmad
+tracking_system: file-system
+story_location: /home/adiaz/github/bmad/_bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Project Foundation & Development Environment
+  epic-1: in-progress
+  1-1-initialize-backend-and-frontend-projects: in-progress
+  1-2-configure-net-aspire-orchestration: backlog
+  1-3-set-up-azure-ad-authentication-backend: backlog
+  1-4-set-up-azure-ad-authentication-frontend: backlog
+  1-5-configure-cosmos-db-serverless-connection: backlog
+  1-6-configure-blob-storage-for-audit-logs: backlog
+  1-7-configure-factorial-hr-api-client-with-polly: backlog
+  1-8-deploy-infrastructure-to-azure-container-apps: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Conversational Interface Foundation
+  epic-2: backlog
+  2-1-create-conversation-state-entities-in-cosmos-db: backlog
+  2-2-implement-ag-ui-server-endpoint-with-microsoft-agent-framework: backlog
+  2-3-build-basic-chat-interface-component-react: backlog
+  2-4-integrate-copilotkit-for-ag-ui-client: backlog
+  2-5-implement-conversation-state-management-zustand: backlog
+  2-6-add-natural-language-date-parsing: backlog
+  2-7-add-browser-notifications-support: backlog
+  2-8-implement-streaming-indicators-and-feedback: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: PTO Management
+  epic-3: backlog
+  3-1-implement-factorial-hr-pto-balance-retrieval: backlog
+  3-2-implement-conversational-pto-request-submission: backlog
+  3-3-create-pto-state-management-store-frontend: backlog
+  3-4-build-pto-request-endpoints-backend: backlog
+  3-5-implement-pto-request-status-checking: backlog
+  3-6-implement-pto-request-cancellation: backlog
+  3-7-implement-policy-validation-rules: backlog
+  3-8-create-manager-pto-approval-notification-system: backlog
+  3-9-build-context-rich-approval-cards-frontend: backlog
+  3-10-implement-manager-approval-actions: backlog
+  3-11-implement-real-time-factorial-sync: backlog
+  3-12-add-pto-request-notifications-to-employees: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Timesheet Management
+  epic-4: backlog
+  4-1-implement-factorial-hr-timesheet-retrieval: backlog
+  4-2-implement-conversational-hour-logging: backlog
+  4-3-create-timesheet-state-management-store-frontend: backlog
+  4-4-build-timesheet-endpoints-backend: backlog
+  4-5-implement-project-task-allocation: backlog
+  4-6-implement-weekly-timesheet-submission: backlog
+  4-7-implement-timesheet-status-checking: backlog
+  4-8-implement-missing-entry-detection: backlog
+  4-9-implement-reminder-notifications-before-deadline: backlog
+  4-10-create-user-pattern-recognition-storage: backlog
+  4-11-implement-real-time-factorial-timesheet-sync: backlog
+  4-12-build-timesheet-view-component-frontend: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Policy Knowledge & Support (RAG)
+  epic-5: backlog
+  5-1-set-up-knowledge-base-document-storage: backlog
+  5-2-implement-document-embedding-pipeline: backlog
+  5-3-implement-semantic-search-for-policy-questions: backlog
+  5-4-integrate-rag-into-agent-responses: backlog
+  5-5-add-source-citations-to-policy-answers: backlog
+  5-6-implement-confidence-threshold-and-escalation: backlog
+  5-7-build-hr-admin-escalation-dashboard: backlog
+  5-8-implement-faq-tracking-and-analytics: backlog
+  5-9-add-policy-update-notifications: backlog
+  5-10-implement-knowledge-base-admin-interface: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Audit, Compliance & Monitoring
+  epic-6: backlog
+  6-1-implement-immutable-audit-log-infrastructure: backlog
+  6-2-implement-complete-decision-context-capture: backlog
+  6-3-build-audit-trail-query-interface-for-hr-admins: backlog
+  6-4-implement-policy-violation-detection-and-flagging: backlog
+  6-5-implement-gdpr-compliant-data-handling: backlog
+  6-6-build-usage-analytics-dashboard: backlog
+  6-7-build-performance-metrics-dashboard: backlog
+  6-8-build-satisfaction-metrics-tracking: backlog
+  6-9-implement-time-savings-calculation-and-reporting: backlog
+  6-10-build-exception-queue-management-interface: backlog
+  6-11-implement-configuration-management-interface: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Manager Approval Workflows
+  epic-7: backlog
+  7-1-implement-approval-request-routing: backlog
+  7-2-implement-context-assembly-from-multiple-systems: backlog
+  7-3-build-desktop-rich-approval-card-component: backlog
+  7-4-implement-green-yellow-red-confidence-signals: backlog
+  7-5-implement-one-click-approval-actions: backlog
+  7-6-implement-approval-comment-handling: backlog
+  7-7-implement-team-coverage-visualization: backlog
+  7-8-implement-conflicting-request-detection: backlog
+  7-9-implement-project-milestone-integration: backlog
+  7-10-build-approval-history-and-analytics: backlog
+  7-11-implement-approval-notification-to-requestors: backlog
+  7-12-implement-approval-decision-audit-trail: backlog
+  epic-7-retrospective: optional
