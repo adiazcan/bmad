@@ -1,32 +1,69 @@
+import { MsalProvider, useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useEffect, useState } from 'react';
+import { msalInstance, initializeMsal, loginRequest } from './lib/auth';
+import { useAuthStore } from './stores/authStore';
 import { apiClient } from './lib/api-client';
 import reactLogo from './assets/react.svg';
 import viteLogo from '/vite.svg';
 import './App.css';
 
-interface WeatherForecast {
-  date: string;
-  temperatureC: number;
-  temperatureF: number;
-  summary: string | null;
-}
-
 function App() {
-  const [weather, setWeather] = useState<WeatherForecast[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    apiClient<WeatherForecast[]>('/weatherforecast')
-      .then(data => {
-        setWeather(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
+    initializeMsal().then(() => setInitialized(true));
   }, []);
+
+  if (!initialized) {
+    return <div>Loading authentication...</div>;
+  }
+
+  return (
+    <MsalProvider instance={msalInstance}>
+      <AuthenticatedApp />
+    </MsalProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  const { instance, accounts } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+  const { setUser, clearAuth } = useAuthStore();
+
+  useEffect(() => {
+    if (accounts.length > 0) {
+      setUser(accounts[0]);
+      // Token will be acquired on first API call via api-client.ts
+    }
+  }, [accounts, setUser]);
+
+  const handleLogin = async () => {
+    try {
+      await instance.loginRedirect(loginRequest);
+    } catch (error) {
+      console.error('Login failed:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      clearAuth();
+      await instance.logoutRedirect({
+        account: accounts[0],
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const testSecureEndpoint = async () => {
+    try {
+      const result = await apiClient<{ message: string; timestamp: string }>('/secure');
+      alert(`Success: ${result.message}\nTimestamp: ${result.timestamp}`);
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   return (
     <>
@@ -38,29 +75,30 @@ function App() {
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>
-      <h1>HRAgent - Weather Test</h1>
+      <h1>HRAgent</h1>
       
       <div className="card">
-        <h2>Backend API Connection Test</h2>
-        {loading && <p>Loading weather data from backend...</p>}
-        {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-        {!loading && !error && weather.length > 0 && (
-          <div style={{ textAlign: 'left' }}>
-            <p><strong>✅ Successfully connected to backend API!</strong></p>
-            <h3>Weather Forecast:</h3>
-            <ul>
-              {weather.map((item, index) => (
-                <li key={index}>
-                  {item.date}: {item.temperatureC}°C ({item.temperatureF}°F) - {item.summary}
-                </li>
-              ))}
-            </ul>
+        {isAuthenticated ? (
+          <div>
+            <p><strong>Welcome, {accounts[0]?.name}!</strong></p>
+            <p style={{ fontSize: '0.9em', color: '#888' }}>
+              {accounts[0]?.username}
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '1em' }}>
+              <button onClick={testSecureEndpoint}>Test Secure API</button>
+              <button onClick={handleLogout}>Sign Out</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p>Please sign in to access HRAgent</p>
+            <button onClick={handleLogin}>Sign In with Azure AD</button>
           </div>
         )}
       </div>
       
       <p className="read-the-docs">
-        This page verifies that .NET Aspire orchestration is working correctly
+        Azure AD authentication with MSAL.js
       </p>
     </>
   );

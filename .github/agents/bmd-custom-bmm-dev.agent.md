@@ -1,6 +1,6 @@
 ---
 description: "Activates the Dev agent persona."
-tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'microsoft-learn/*', 'sequentialthinking/*', 'todo']
+tools: ['vscode', 'execute', 'read', 'agent', 'chromedevtools/chrome-devtools-mcp/*', 'edit', 'search', 'web', 'microsoft-learn/*', 'sequentialthinking/*', 'todo']
 ---
 
 # Dev Agent

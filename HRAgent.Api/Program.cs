@@ -37,7 +37,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 // CRITICAL ORDER: CORS -> Authentication -> Authorization
 app.UseCors();
@@ -64,7 +64,7 @@ app.MapGet("/weatherforecast", () =>
 .WithName("GetWeatherForecast");
 
 // Protected test endpoint
-app.MapGet("/secure", () => "Authenticated!")
+app.MapGet("/secure", () => new { message = "Authenticated!", timestamp = DateTime.UtcNow })
     .RequireAuthorization()
     .WithName("GetSecure");
 
@@ -74,4 +74,3 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
-public partial class Program { }
