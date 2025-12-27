@@ -44,7 +44,7 @@ development_status:
   epic-1: in-progress
   1-1-initialize-backend-and-frontend-projects: done
   1-2-configure-net-aspire-orchestration: done
-  1-3-set-up-azure-ad-authentication-backend: backlog
+  1-3-set-up-azure-ad-authentication-backend: review
   1-4-set-up-azure-ad-authentication-frontend: backlog
   1-5-configure-cosmos-db-serverless-connection: backlog
   1-6-configure-blob-storage-for-audit-logs: backlog

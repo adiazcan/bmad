@@ -20,6 +20,9 @@ Before you begin, ensure you have the following installed:
 - **Node.js 20+** - [Download here](https://nodejs.org/)
   - Verify: `node --version` should show v20.x.x
 - **Git** - For version control
+- **Azure AD Tenant** (for authentication) - [Azure Portal](https://portal.azure.com)
+  - Required for production authentication
+  - Optional for local development (can use mock tokens in tests)
 
 ## Quick Start with .NET Aspire (Recommended)
 
@@ -143,6 +146,104 @@ npm test
 # Or run with UI: npm run test:ui
 ```
 
+## Azure AD Authentication Setup
+
+The backend API uses Microsoft.Identity.Web for Azure AD JWT token validation. Protected endpoints require valid JWT tokens.
+
+### 1. Create Azure AD App Registration
+
+**Using Azure Portal (portal.azure.com):**
+
+1. Navigate to **Azure Active Directory** → **App registrations** → **New registration**
+2. Configure the registration:
+   - **Name**: `HRAgent API`
+   - **Supported account types**: Single tenant (this directory only)
+   - **Redirect URI**: Leave blank (not needed for API)
+3. After creation, note the following values:
+   - **Application (client) ID**: Copy this value
+   - **Directory (tenant) ID**: Copy this value
+4. Configure API scope:
+   - Navigate to **Expose an API**
+   - Add **Application ID URI**: `api://{client-id}` (replace {client-id} with your actual client ID)
+   - Add a scope:
+     - **Scope name**: `access_as_user`
+     - **Who can consent**: Admins and users
+     - **Display name**: Access HRAgent API
+     - **Description**: Allows the app to access HRAgent API on behalf of the signed-in user
+
+### 2. Configure appsettings.json
+
+Update `HRAgent.Api/appsettings.json` with your Azure AD values:
+
+```json
+{
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "{your-tenant-id}",
+    "ClientId": "{your-client-id}",
+    "Audience": "api://{your-client-id}"
+  }
+}
+```
+
+For **local development**, you can use `appsettings.Development.json` with the "common" tenant for multi-tenant testing:
+
+```json
+{
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "common",
+    "ClientId": "{your-dev-client-id}",
+    "Audience": "api://{your-dev-client-id}"
+  }
+}
+```
+
+> **Security Note:** Never commit real credentials to Git. Add `appsettings.*.json` with secrets to `.gitignore`.
+
+### 3. Test Authentication
+
+**Without token (should return 401 Unauthorized):**
+```bash
+curl http://localhost:5000/secure
+```
+
+**With valid token (should return 200 OK):**
+```bash
+curl -H "Authorization: Bearer {your-jwt-token}" http://localhost:5000/secure
+```
+
+**Run integration tests:**
+```bash
+cd HRAgent.Api.Tests
+dotnet test
+# 6 authentication tests verify middleware behavior
+```
+
+### Authentication Flow
+
+1. Frontend user initiates login via MSAL.js (Story 1.4 - coming soon)
+2. User authenticates with Azure AD (username/password, MFA)
+3. Azure AD issues JWT token with claims (userId, email, roles)
+4. Frontend sends token in `Authorization: Bearer {token}` header
+5. Backend validates token automatically via Microsoft.Identity.Web middleware
+6. Protected endpoints extract userId from token claims
+
+### Common Authentication Errors
+
+**401 Unauthorized - Missing token:**
+- Ensure `Authorization: Bearer {token}` header is present
+- Check that the endpoint requires authorization (`.RequireAuthorization()`)
+
+**401 Unauthorized - Invalid token:**
+- Verify token is not expired
+- Check token audience matches `Audience` in appsettings.json
+- Ensure token issuer matches your Azure AD tenant
+
+**CORS errors:**
+- Frontend origin (http://localhost:5173) is configured in Program.cs CORS policy
+- CORS middleware must be before Authentication middleware
+
 ## Project Structure
 
 ```
@@ -153,11 +254,16 @@ bmad/
 │   │   └── launchSettings.json  # Launch profiles (http, https)
 │   └── HRAgent.AppHost.csproj
 ├── HRAgent.Api/              # Backend API (.NET 10 Minimal APIs)
-│   ├── Program.cs            # Main entry point with endpoint definitions
+│   ├── Program.cs            # Main entry point + authentication middleware
 │   ├── Properties/
 │   │   └── launchSettings.json  # Port configuration (5000)
-│   ├── appsettings.json
+│   ├── appsettings.json      # Azure AD configuration (template)
+│   ├── appsettings.Development.json  # Dev Azure AD configuration
 │   └── HRAgent.Api.csproj
+├── HRAgent.Api.Tests/        # Integration tests
+│   ├── AuthenticationTests.cs  # JWT authentication tests (6 tests)
+│   ├── AspireIntegrationTests.cs
+│   └── HRAgent.Api.Tests.csproj
 ├── hragent-ui/               # Frontend SPA (React + TypeScript + Vite)
 │   ├── src/
 │   │   ├── main.tsx          # Entry point
@@ -301,9 +407,10 @@ npm run build
 
 ## Next Steps
 
-- ✅ **Story 1.1**: Initialize backend and frontend projects
+- ✅ **Story 1.1**: Initialize backend and frontend projects (COMPLETE)
 - ✅ **Story 1.2**: Configure .NET Aspire orchestration (COMPLETE)
-- **Story 1.3-1.4**: Add Azure AD authentication
+- ✅ **Story 1.3**: Set up Azure AD authentication - backend (COMPLETE)
+- **Story 1.4**: Set up Azure AD authentication - frontend (MSAL.js)
 - **Story 1.5-1.6**: Configure Cosmos DB and Blob Storage
 - **Story 2.x**: Implement conversational interface with Microsoft Agent Framework
 
