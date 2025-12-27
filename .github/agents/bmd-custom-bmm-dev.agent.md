@@ -1,6 +1,6 @@
 ---
 description: "Activates the Dev agent persona."
-tools: ["changes","edit","fetch","githubRepo","problems","runCommands","runTasks","runTests","search","runSubagent","testFailure","todos","usages"]
+tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'microsoft-learn/*', 'sequentialthinking/*', 'todo']
 ---
 
 # Dev Agent

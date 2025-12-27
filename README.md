@@ -21,7 +21,9 @@ Before you begin, ensure you have the following installed:
   - Verify: `node --version` should show v20.x.x
 - **Git** - For version control
 
-## Quick Start
+## Quick Start with .NET Aspire (Recommended)
+
+.NET Aspire orchestrates both backend and frontend with a single command, providing an integrated dashboard for logs and telemetry.
 
 ### 1. Clone the Repository
 
@@ -30,7 +32,43 @@ git clone <repository-url>
 cd bmad
 ```
 
-### 2. Backend Setup
+### 2. Start Everything with Aspire
+
+```bash
+# Start AppHost - launches backend API + frontend + Aspire dashboard
+cd HRAgent.AppHost
+dotnet run --launch-profile http
+
+# Or with HTTPS (dashboard):
+dotnet run --launch-profile https
+```
+
+**What starts automatically:**
+- ✅ Backend API on http://localhost:5000 (HTTPS varies)
+- ✅ Frontend on http://localhost:5173
+- ✅ Aspire Dashboard on http://localhost:15000
+
+**Access the application:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000/weatherforecast
+- Aspire Dashboard: http://localhost:15000 (check logs, traces, metrics)
+
+**Stop everything:** Press `Ctrl+C` in the terminal where AppHost is running.
+
+### Benefits of Aspire Orchestration:
+- 🚀 Single command starts all services
+- 📊 Unified dashboard for logs and observability
+- 🔗 Automatic service discovery (frontend knows backend URL)
+- ⚡ Hot reload for both backend and frontend
+- 🎯 Foundation for Azure Container Apps deployment
+
+## Alternative: Manual Startup (Development)
+
+## Alternative: Manual Startup (Development)
+
+If you prefer to run services independently without Aspire:
+
+### 1. Backend Setup
 
 ```bash
 # Navigate to backend project
@@ -53,7 +91,7 @@ The backend API will be available at:
 
 > **Note:** By default, the "http" profile runs on port 5000 only. The "https" profile enables both HTTP (5000) and HTTPS (7187). You can specify the profile with `dotnet run --launch-profile http` or `dotnet run --launch-profile https`.
 
-### 3. Frontend Setup
+### 2. Frontend Setup
 
 ```bash
 # Navigate to frontend project
@@ -62,13 +100,18 @@ cd ../hragent-ui
 # Install dependencies (if not already installed)
 npm install
 
+# Set backend URL (create .env.local file)
+echo "VITE_API_URL=http://localhost:5000" > .env.local
+
 # Run development server (starts on http://localhost:5173)
 npm run dev
 ```
 
 The frontend will be available at http://localhost:5173 with Hot Module Replacement (HMR) enabled.
 
-### 4. Build for Production
+> **Note:** When using Aspire orchestration, the `VITE_API_URL` is set automatically. The `.env.local` file is only needed for standalone frontend development.
+
+### 3. Build for Production
 
 **Backend:**
 ```bash
@@ -83,7 +126,7 @@ npm run build
 # Production files will be in dist/ folder
 ```
 
-### 5. Run Tests
+### 4. Run Tests
 
 **Backend Tests:**
 ```bash
@@ -104,6 +147,11 @@ npm test
 
 ```
 bmad/
+├── HRAgent.AppHost/          # .NET Aspire orchestration (NEW in Story 1.2)
+│   ├── Program.cs            # Service registration and configuration
+│   ├── Properties/
+│   │   └── launchSettings.json  # Launch profiles (http, https)
+│   └── HRAgent.AppHost.csproj
 ├── HRAgent.Api/              # Backend API (.NET 10 Minimal APIs)
 │   ├── Program.cs            # Main entry point with endpoint definitions
 │   ├── Properties/
@@ -114,7 +162,10 @@ bmad/
 │   ├── src/
 │   │   ├── main.tsx          # Entry point
 │   │   ├── App.tsx           # Root component
+│   │   ├── lib/
+│   │   │   └── api-client.ts # API client with service discovery
 │   │   └── ...
+│   ├── .env.local            # Local env vars (fallback, not committed)
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tsconfig.json
@@ -124,11 +175,28 @@ bmad/
 
 ## Port Configuration
 
+**With Aspire Orchestration (Recommended):**
+- **Aspire Dashboard**: http://localhost:15000 (or https://localhost:15001)
+- **Backend API**: Dynamically assigned (visible in Aspire dashboard)
+- **Frontend**: Dynamically assigned (visible in Aspire dashboard)
+- Frontend automatically receives backend URL via `VITE_API_URL` environment variable
+
+**Manual Startup (Fallback):**
 - **Backend API (HTTP)**: http://localhost:5000
 - **Backend API (HTTPS)**: https://localhost:7187 (optional, use `--launch-profile https`)
 - **Frontend Dev Server**: http://localhost:5173
 
-These ports are configured for .NET Aspire orchestration (to be added in Story 1.2).
+## Aspire Dashboard Features
+
+Access the dashboard at http://localhost:15000 to view:
+
+- **Resources**: All running services (backend, frontend) with status indicators
+- **Logs**: Aggregated console logs from all services with filtering
+- **Traces**: Distributed tracing for request flows (OpenTelemetry)
+- **Metrics**: Performance metrics (CPU, memory, request counts)
+- **Environment**: View environment variables injected into each service
+
+This provides complete observability during local development.
 
 ## Architecture Notes
 
@@ -147,6 +215,28 @@ The frontend uses modern tooling:
 - Component-based architecture with PascalCase file naming
 
 ## Troubleshooting
+
+### Aspire Issues
+
+**Dashboard not loading:**
+```bash
+# Check that AppHost is running
+# Dashboard URL is displayed in console output
+# Default: http://localhost:15000
+```
+
+**Services not starting:**
+```bash
+# Check Aspire dashboard Resources tab for service status
+# View logs in dashboard Logs tab for error details
+# Ensure backend and frontend projects build successfully
+```
+
+**HTTPS certificate errors:**
+```bash
+# Use http profile which allows unsecured transport
+dotnet run --launch-profile http
+```
 
 ### Backend Issues
 
@@ -195,15 +285,24 @@ npm run build
 
 ## Development Workflow
 
+**With Aspire (Recommended):**
+1. **Start Everything**: `cd HRAgent.AppHost && dotnet run --launch-profile http`
+2. **View Dashboard**: Open http://localhost:15000
+3. **Make Changes**: Edit code with hot reload enabled for both services
+4. **View Logs**: Check Aspire dashboard for real-time logs and traces
+5. **Stop All**: Press `Ctrl+C` in AppHost terminal
+
+**Manual Workflow:**
 1. **Start Backend**: `cd HRAgent.Api && dotnet run`
 2. **Start Frontend**: `cd hragent-ui && npm run dev`
 3. **Make Changes**: Edit code with hot reload enabled
-4. **Test**: Run tests (to be configured in later stories)
+4. **Test**: Run tests before committing
 5. **Build**: Run production builds before committing
 
 ## Next Steps
 
-- **Story 1.2**: Configure .NET Aspire orchestration for single-command startup
+- ✅ **Story 1.1**: Initialize backend and frontend projects
+- ✅ **Story 1.2**: Configure .NET Aspire orchestration (COMPLETE)
 - **Story 1.3-1.4**: Add Azure AD authentication
 - **Story 1.5-1.6**: Configure Cosmos DB and Blob Storage
 - **Story 2.x**: Implement conversational interface with Microsoft Agent Framework

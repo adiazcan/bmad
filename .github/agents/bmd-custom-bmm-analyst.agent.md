@@ -1,6 +1,6 @@
 ---
 description: "Activates the Analyst agent persona."
-tools: ['vscode', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'microsoft-learn/*', 'sequentialthinking/*', 'todo']
+tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'microsoft-learn/*', 'sequentialthinking/*', 'todo']
 ---
 
 # Analyst Agent
