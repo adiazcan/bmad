@@ -272,7 +272,7 @@ Development team can start building HRAgent with proper infrastructure, authenti
 
 **FRs covered:** FR1, FR2, FR3, FR4, FR47, FR48, FR52
 
-**Implementation notes:** Uses `dotnet new webapi` (Minimal APIs) + Vite React TypeScript starters, .NET Aspire orchestration for local dev, Azure Container Apps deployment, Cosmos DB Serverless & Blob Storage setup, Microsoft.Identity.Web for Azure AD/SSO, Polly for Factorial API resilience.
+**Implementation notes:** Uses `dotnet new webapi` (Minimal APIs) + Vite React TypeScript starters, .NET Aspire orchestration for local dev, Azure Container Apps deployment, Azure DocumentDB (production) + MongoDB (local) with unified MongoDB.Driver & Blob Storage setup, Microsoft.Identity.Web for Azure AD/SSO, Polly for Factorial API resilience.
 
 ---
 
@@ -281,7 +281,7 @@ Employees can interact with HRAgent through natural conversation on any device, 
 
 **FRs covered:** FR5, FR6, FR7, FR8, FR9, FR10, FR11
 
-**Implementation notes:** AG-UI protocol with SSE streaming (<1s time-to-first-token), mobile-first responsive (320px min, ≥44px touch targets), CopilotKit integration for React frontend, conversation state in Cosmos DB (threadId partition), ≥90% intent recognition accuracy target, natural date parsing ("next Friday", "March 10-12").
+**Implementation notes:** AG-UI protocol with SSE streaming (<1s time-to-first-token), mobile-first responsive (320px min, ≥44px touch targets), CopilotKit integration for React frontend, conversation state in MongoDB (threadId indexed), ≥90% intent recognition accuracy target, natural date parsing ("next Friday", "March 10-12").
 
 ---
 
@@ -299,7 +299,7 @@ Employees can log work hours conversationally with project allocation, submit we
 
 **FRs covered:** FR23, FR24, FR25, FR26, FR27, FR28, FR29, FR50, FR51
 
-**Implementation notes:** Conversational hour logging with project inference, pattern recognition storage (Cosmos DB user-patterns container), reminder notifications (learned optimal timing in Growth phase), real-time Factorial sync, Friday deadline spike handling (10x capacity), mobile-first quick interactions.
+**Implementation notes:** Conversational hour logging with project inference, pattern recognition storage (MongoDB user-patterns collection), reminder notifications (learned optimal timing in Growth phase), real-time Factorial sync, Friday deadline spike handling (10x capacity), mobile-first quick interactions.
 
 ---
 
@@ -308,7 +308,7 @@ Employees get instant, accurate answers to HR policy questions with source citat
 
 **FRs covered:** FR30, FR31, FR32, FR33, FR34, FR35
 
-**Implementation notes:** RAG-based knowledge retrieval (Azure AI Search or Cosmos DB vector search), text-embedding-ada-002 for embeddings, source citation transparency, escalation workflow to HR admins, FAQ tracking for knowledge base improvement, confidence thresholds trigger escalation.
+**Implementation notes:** RAG-based knowledge retrieval (Azure AI Search or MongoDB vector search), text-embedding-ada-002 for embeddings, source citation transparency, escalation workflow to HR admins, FAQ tracking for knowledge base improvement, confidence thresholds trigger escalation.
 
 ---
 
@@ -399,23 +399,25 @@ So that authenticated API requests can be made to the backend.
 **And** login flow redirects to Azure AD and returns with valid token
 **And** token refresh works automatically when token expires
 
-### Story 1.5: Configure Cosmos DB Serverless Connection
+### Story 1.5: Configure Azure DocumentDB and MongoDB Connection
 
 As a developer,
-I want the backend to connect to Cosmos DB for conversation state storage,
-So that user conversations can be persisted and retrieved.
+I want the backend to connect to Azure DocumentDB (production) and MongoDB (local) for conversation state storage,
+So that user conversations can be persisted and retrieved with unified driver and environment parity.
 
 **Acceptance Criteria:**
 
-**Given** Azure Cosmos DB Serverless account exists
-**When** I configure EF Core Cosmos provider
-**Then** `Microsoft.EntityFrameworkCore.Cosmos` package is installed
-**And** `AppDbContext.cs` is created with Cosmos DB configuration
-**And** `appsettings.json` contains CosmosDb section (ConnectionString, DatabaseName)
+**Given** Azure DocumentDB cluster exists for production and MongoDB container for local
+**When** I configure MongoDB.Driver
+**Then** `MongoDB.Driver` NuGet package is installed
+**And** `Aspire.MongoDB.Driver` package is installed for .NET Aspire integration
+**And** `MongoDbService.cs` is created with `IMongoClient` and `IMongoDatabase` configuration
+**And** `appsettings.json` contains MongoDB section (ConnectionString, DatabaseName)
 **And** connection string is referenced from Azure Key Vault in production config
-**And** `Program.cs` registers `AddDbContext<AppDbContext>()` with Cosmos provider
-**And** health check endpoint `/ready` verifies Cosmos DB connectivity
-**And** Cosmos DB emulator works for local development
+**And** `Program.cs` registers `IMongoClient` as singleton and `IMongoDatabase` as scoped
+**And** health check endpoint `/ready` verifies MongoDB connectivity
+**And** .NET Aspire orchestrates MongoDB container for local development
+**And** same MongoDB.Driver code works for both local MongoDB and Azure DocumentDB
 
 ### Story 1.6: Configure Blob Storage for Audit Logs
 
@@ -480,22 +482,23 @@ So that the application runs in production Azure environment.
 
 Employees can interact with HRAgent through natural conversation on any device, establishing the core chat experience. Users can access HRAgent via web chat from desktop or mobile browser, have natural conversations with context maintained across messages, see real-time streaming AI responses, and receive clear feedback for all actions.
 
-### Story 2.1: Create Conversation State Entities in Cosmos DB
+### Story 2.1: Create Conversation State Collections in MongoDB
 
 As a developer,
-I want to define conversation entities for Cosmos DB storage,
+I want to define conversation collections for MongoDB storage,
 So that chat conversations can be persisted and retrieved by threadId.
 
 **Acceptance Criteria:**
 
-**Given** Cosmos DB connection is configured
-**When** I create conversation entities
-**Then** `ConversationThread.cs` entity is created with properties: ThreadId (partition key), UserId, CreatedAt, Messages[]
-**And** `Message.cs` entity is created with properties: Id, Role (user/assistant), Text, CreatedAt, TokenCount
-**And** `AppDbContext` includes `DbSet<ConversationThread>` with ToContainer("conversations")
-**And** Cosmos DB partition key is configured as `ThreadId` using `HasPartitionKey()`
-**And** entities use PascalCase in C# but serialize to camelCase JSON automatically
-**And** conversation can be created and retrieved by threadId successfully
+**Given** MongoDB connection is configured
+**When** I create conversation models
+**Then** `ConversationThread.cs` model is created with properties: Id (ObjectId), ThreadId, UserId, CreatedAt, Messages[]
+**And** `Message.cs` model is created with properties: Id, Role (user/assistant), Text, CreatedAt, TokenCount
+**And** Models use MongoDB attributes: `[BsonId]`, `[BsonElement]`, `[BsonRepresentation]`
+**And** `ConversationRepository.cs` uses `IMongoCollection<ConversationThread>`
+**And** ThreadId is indexed for fast lookups using `Builders<T>.IndexKeys.Ascending()`
+**And** Models use PascalCase in C# but serialize to camelCase BSON automatically
+**And** Conversation can be created and retrieved by threadId successfully using MongoDB.Driver LINQ
 
 ### Story 2.2: Implement AG-UI Server Endpoint with Microsoft Agent Framework
 
@@ -1034,20 +1037,20 @@ So that I don't forget to submit.
 ### Story 4.10: Create User Pattern Recognition Storage
 
 As a developer,
-I want to store user timesheet patterns in Cosmos DB,
+I want to store user timesheet patterns in MongoDB,
 So that pattern-based features like "log like last week" can be implemented later.
 
 **Acceptance Criteria:**
 
-**Given** Cosmos DB connection is configured
-**When** I create pattern recognition entities
-**Then** `UserPattern.cs` entity is created with properties: UserId (partition key), TimesheetDayOfWeek, PreferredSubmissionTime, ProjectAllocations[]
-**And** `AppDbContext` includes `DbSet<UserPattern>` with ToContainer("user-patterns")
-**And** Cosmos DB partition key is configured as `UserId`
+**Given** MongoDB connection is configured
+**When** I create pattern recognition collections
+**Then** `UserPattern.cs` model is created with properties: Id (ObjectId), UserId, TimesheetDayOfWeek, PreferredSubmissionTime, ProjectAllocations[]
+**And** `UserPatternRepository.cs` uses `IMongoCollection<UserPattern>` with "user-patterns" collection
+**And** UserId is indexed for fast lookups using `Builders<T>.IndexKeys.Ascending(x => x.UserId)`
 **And** `PatternService.cs` is created to analyze and store patterns
 **And** service has method: `AnalyzeTimesheetPatterns(userId)` that runs weekly
 **And** patterns include: typical submission day (e.g., Friday), typical hours per project
-**And** patterns are updated incrementally as more data is collected
+**And** patterns are updated incrementally as more data is collected using MongoDB upsert operations
 **And** pattern data will enable "log like last week" feature in Growth phase
 
 ### Story 4.11: Implement Real-Time Factorial Timesheet Sync
@@ -1101,7 +1104,7 @@ So that the system can answer policy questions accurately.
 
 **Acceptance Criteria:**
 
-**Given** Azure AI Search or Cosmos DB vector search is available
+**Given** Azure AI Search or MongoDB vector search is available
 **When** I configure knowledge base storage
 **Then** policy documents are stored in searchable format (PDF, Markdown, or plaintext)
 **And** document metadata includes: title, category (PTO, expenses, benefits), lastUpdated, source URL

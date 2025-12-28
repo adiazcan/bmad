@@ -1,15 +1,12 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Add Cosmos DB emulator with Docker container (Linux emulator)
-var cosmos = builder.AddAzureCosmosDB("cosmos")
-    .RunAsEmulator(configureContainer: container =>
-    {
-        container.WithImageRegistry("mcr.microsoft.com")
-            .WithImage("cosmosdb/linux/azure-cosmos-emulator")
-            .WithImageTag("vnext-preview");
-    });
+// Add MongoDB container for local development
+// Aspire automatically configures authentication with default credentials
+var mongodb = builder.AddMongoDB("mongodb")
+    .WithConnectionProperty("authSource", "admin");
+    // .WithDataVolume();  // Persist data across container restarts
 
-var database = cosmos.AddCosmosDatabase("hragent");
+var database = mongodb.AddDatabase("hragent");
 
 // Add Azurite blob storage emulator with automatic container management
 var storage = builder.AddAzureStorage("storage")
@@ -17,10 +14,12 @@ var storage = builder.AddAzureStorage("storage")
 
 var blobs = storage.AddBlobs("blobs");
 
-// Add backend API project with Cosmos DB and Blob Storage references
+// Add backend API project with MongoDB and Blob Storage references
 var backend = builder.AddProject<Projects.HRAgent_Api>("backend")
-    .WithReference(database) // ✅ Aspire injects Cosmos DB connection string automatically
+    .WithReference(database) // ✅ Aspire injects MongoDB connection string automatically
     .WithReference(blobs)    // ✅ Aspire injects Blob Storage connection string automatically
+    .WaitFor(mongodb)
+    .WaitFor(storage)
     .WithExternalHttpEndpoints();
 
 // Add frontend Vite app (AddNpmApp deprecated in Aspire 13.0)

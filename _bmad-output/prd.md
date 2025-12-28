@@ -61,9 +61,40 @@ What begins as employee relief evolves into organizational intelligence. Timeshe
 - Backend: C# .NET 10 with Microsoft Agent Framework and ASP.NET Core
 - Frontend: React.js 18+ with TypeScript and CopilotKit for AG-UI integration
 - AI Platform: Azure AI Foundry with managed LLM endpoints (no GPU infrastructure needed)
+- Database Architecture: Azure DocumentDB + MongoDB Local Development
+  - **Production Database:** Azure DocumentDB (Microsoft's MongoDB-compatible service)
+    - Tier: M200-Autoscale (instant scaling, pay-as-you-use)
+    - Compatibility: 99.02% MongoDB Query Language (MQL) support
+    - Features: Native MongoDB Wire Protocol, vector search, auto-sharding
+    - Scaling: Vertical (compute/RAM) and horizontal (storage) with automatic management
+    - Performance: Low-latency with automatic indexing and partitioning
+  - **Local Development:** MongoDB Community Edition in Docker containers
+    - Orchestration: .NET Aspire for automatic container lifecycle management
+    - Feature Parity: Same MongoDB API ensures local/production consistency
+    - Cost: Zero cloud costs for local development
+  - **Unified Database Driver:** MongoDB.Driver (NuGet package)
+    - Single driver works for both local MongoDB and Azure DocumentDB
+    - LINQ support for type-safe queries
+    - Async/await patterns for modern C# development
+    - Connection pooling managed automatically
+  - **Data Access Pattern:** Repository Pattern with Dependency Injection
+    - Abstraction: IMongoClient and IMongoDatabase injected via DI
+    - Type Safety: Generic repositories with compile-time checking
+    - Testability: Interfaces enable unit testing with mocks
+  - **Configuration Management:**
+    - Environment-based: appsettings.Development.json vs. appsettings.Production.json
+    - Local: Connection string managed by .NET Aspire orchestration
+    - Production: Connection strings secured in Azure Key Vault
+    - Zero Code Changes: Same application code works across all environments
+  - **Migration Strategy:** Migrating from existing Cosmos DB NoSQL API
+    - Azure Portal migration tool with online/offline modes
+    - Index migration script for optimal performance
+    - Data integrity validation post-migration
+    - Cutover strategy with rollback plan
 - Deployment: Azure Container Apps with consumption-based scaling
 - Integration: Factorial HR API, calendar systems (Google/Microsoft), RAG knowledge base
 - Protocol: AG-UI with Server-Sent Events (SSE) for real-time streaming
+- Orchestration: .NET Aspire for local development container management
 
 ## Success Criteria
 
@@ -207,13 +238,51 @@ When employees, managers, and HR staff stop talking about administrative work be
    - ❌ NO pattern recognition or anomaly detection in MVP
 
 5. **Foundation Infrastructure**
+   - **Database Architecture:**
+     - **Production: Azure DocumentDB**
+       - Service: Microsoft's fully managed MongoDB-compatible database
+       - Tier: M200-Autoscale (scales M80-M200 range automatically)
+       - Capabilities: 99.02% MongoDB API compatibility, native MongoDB Wire Protocol
+       - Performance: Low-latency queries with automatic indexing and partitioning
+       - Scaling: Instant compute autoscaling (CPU/RAM), manual storage scaling
+       - Cost: Pay-as-you-use pricing (18% savings vs. overprovisioned M200)
+       - Backup: Automatic backups with point-in-time recovery
+       - Security: TLS/SSL encryption, firewall rules, private endpoints
+     - **Development: MongoDB Community Edition**
+       - Deployment: Docker container managed by .NET Aspire orchestration
+       - Version: Aligned with Azure DocumentDB MongoDB compatibility version
+       - Persistence: Data volume for persistence across restarts
+       - Cost: Zero cloud costs for local development
+       - Feature Parity: Same MongoDB API as production
+     - **Database Driver: MongoDB.Driver (NuGet)**
+       - Compatibility: Works identically with local MongoDB AND Azure DocumentDB
+       - Features: LINQ support, async/await patterns, type-safe collections
+       - Connection Pooling: Automatic connection pool management (singleton pattern)
+       - Performance: Optimized for high-throughput scenarios
+     - **Data Access Layer:**
+       - Pattern: Repository Pattern with aggregate roots (Domain-Driven Design)
+       - Interfaces: IEmployeeRepository, IAuditLogRepository, IConversationRepository
+       - Implementation: MongoRepository<T> using IMongoCollection<T>
+       - Dependency Injection: IMongoClient registered as Singleton, repositories as Scoped
+       - Testing: Testcontainers for integration tests with real MongoDB
+     - **Configuration Management:**
+       - Local Development: Connection string injected by .NET Aspire
+       - Production: Connection string retrieved from Azure Key Vault via Managed Identity
+       - Environment Abstraction: builder.Configuration.GetConnectionString("MongoDB")
+       - Zero Code Changes: Same code works across all environments
+     - **Local Development Orchestration (.NET Aspire):**
+       - AppHost Configuration: AddMongoDB("mongodb").AddDatabase("hragent-db")
+       - Service Discovery: Automatic connection string injection
+       - Container Management: Lifecycle management (start, stop, cleanup)
+       - Observability: Development dashboard with service monitoring
    - Factorial HR integration (read/write PTO, timesheets, employee data)
    - Microsoft Agent Framework with AG-UI protocol
    - Azure AI Foundry managed LLM endpoints
-   - Authentication & security (SSO, RBAC, encryption)
-   - Complete audit logging (immutable records)
+   - Authentication & security (Azure AD SSO, RBAC, TLS encryption)
+   - Complete audit logging (immutable BSON documents in Azure DocumentDB)
    - Multi-channel interface (Slack, Teams, or web chat—start with one)
-   - Basic analytics dashboard (usage, adoption, errors)
+   - Basic analytics dashboard (usage, adoption, errors, database performance)
+   - Application Insights (database dependency tracking, query duration monitoring)
 
 **Success Criteria for MVP GO/NO-GO:**
 - ✅ 70%+ employees try, 50%+ adopt as primary method, ≥4.0 satisfaction
@@ -467,6 +536,457 @@ If intent understanding doesn't achieve target accuracy:
 - Adjust confidence thresholds for when to ask clarifying questions vs. making assumptions
 - Retain traditional portal as primary interface until accuracy targets met
 
+## Database Architecture & Implementation Details
+
+### Database Technology Selection
+
+**Production Database: Azure DocumentDB**
+
+Azure DocumentDB is Microsoft's fully managed MongoDB-compatible database service (formerly known as Azure Cosmos DB for MongoDB vCore, now a distinct offering). It provides enterprise-grade MongoDB hosting with native Azure integration.
+
+**Key Capabilities:**
+- **99.02% MongoDB Query Language Compatibility:** Comprehensive operator support (96.67% aggregation stages, 100% aggregation operators, 97.78% query operators, 100% update operators)
+- **MongoDB Wire Protocol Support:** Use existing MongoDB drivers without code changes
+- **Instant Autoscaling:** M200-Autoscale tier scales M80-M200 range automatically based on demand
+- **Decoupled Compute/Storage:** Scale CPU/RAM independently from storage for cost optimization
+- **Auto-Sharding:** Automatic data distribution without manual shard key management
+- **Vector Search:** Built-in AI capabilities with integrated vector database
+- **Enterprise Features:** Automatic backups, point-in-time recovery, high availability
+- **Azure Integration:** Native support for Managed Identity, Private Link, Azure Monitor
+
+**Local Development Database: MongoDB Community Edition**
+
+For local development, standard MongoDB Community Edition runs in Docker containers orchestrated by .NET Aspire:
+
+**Benefits:**
+- **Identical API:** Same MongoDB API as Azure DocumentDB ensures environment parity
+- **Container-Based:** Easy Docker/Podman deployment managed by Aspire
+- **No Cost:** Free for local development (zero cloud spend)
+- **Full Feature Parity:** Test with real MongoDB features locally
+- **Aspire Integration:** Automatic service discovery and connection management
+
+### Unified Database Driver Strategy
+
+**MongoDB.Driver (NuGet Package)**
+
+The critical architectural decision is using MongoDB.Driver for both local and production environments. This single driver provides:
+
+```csharp
+// Same code works for both local MongoDB and Azure DocumentDB
+using MongoDB.Driver;
+
+var client = new MongoClient(connectionString);
+var database = client.GetDatabase("hragent");
+var collection = database.GetCollection<Employee>("employees");
+```
+
+**Driver Features:**
+- **Type-Safe Collections:** Generic IMongoCollection<T> with compile-time type checking
+- **LINQ Support:** Write queries using LINQ expressions (translated to MongoDB queries)
+- **Async/Await Patterns:** Modern C# async patterns for non-blocking database operations
+- **Connection Pooling:** Automatic connection pool management (MongoClient should be singleton)
+- **Change Streams:** Real-time notifications of database changes for reactive patterns
+- **Performance:** Optimized binary protocol (BSON) for efficient data transfer
+
+### Data Access Pattern: Repository Pattern
+
+**Domain-Driven Design Approach**
+
+HRAgent implements the Repository Pattern with aggregate roots following Domain-Driven Design principles:
+
+```csharp
+// Domain layer - Repository interface
+public interface IEmployeeRepository
+{
+    Task<Employee> GetByIdAsync(string id);
+    Task<IEnumerable<Employee>> GetAllAsync();
+    Task<Employee> CreateAsync(Employee employee);
+    Task UpdateAsync(string id, Employee employee);
+    Task DeleteAsync(string id);
+}
+
+// Infrastructure layer - MongoDB implementation
+public class EmployeeRepository : IEmployeeRepository
+{
+    private readonly IMongoCollection<Employee> _collection;
+
+    public EmployeeRepository(IMongoDatabase database)
+    {
+        _collection = database.GetCollection<Employee>("employees");
+    }
+
+    public async Task<Employee> GetByIdAsync(string id)
+    {
+        return await _collection.Find(x => x.Id == id).FirstOrDefaultAsync();
+    }
+
+    // Additional implementations...
+}
+```
+
+**Design Benefits:**
+- **Separation of Concerns:** Domain logic separated from data access implementation
+- **Dependency Inversion:** Depend on abstractions (interfaces), not concrete implementations
+- **Testability:** Mock repositories for unit tests without database dependencies
+- **Single Responsibility:** Each repository manages one aggregate root
+- **Maintainability:** Database implementation changes don't affect business logic
+
+### Dependency Injection Configuration
+
+**Service Registration Pattern**
+
+```csharp
+// Program.cs - Configure MongoDB dependency injection
+var connectionString = builder.Configuration.GetConnectionString("MongoDB");
+var databaseName = builder.Configuration["MongoDB:DatabaseName"];
+
+// Register MongoClient as SINGLETON (per MongoDB best practices)
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var settings = MongoClientSettings.FromConnectionString(connectionString);
+    settings.MaxConnectionPoolSize = 100;
+    settings.ServerSelectionTimeout = TimeSpan.FromSeconds(10);
+    return new MongoClient(settings);
+});
+
+// Register IMongoDatabase as SCOPED
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    return client.GetDatabase(databaseName);
+});
+
+// Register repositories as SCOPED
+builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+```
+
+**Dependency Injection Benefits:**
+- **Singleton MongoClient:** One client instance manages connection pooling (MongoDB best practice)
+- **Scoped Repositories:** New repository instance per HTTP request
+- **Constructor Injection:** Services automatically receive configured dependencies
+- **Testing:** Easy to substitute mock implementations for unit tests
+
+### Environment-Based Configuration
+
+**Local Development Configuration (appsettings.Development.json):**
+
+```json
+{
+  "ConnectionStrings": {
+    "MongoDB": "mongodb://localhost:27017"
+  },
+  "MongoDB": {
+    "DatabaseName": "HRAgent-Dev"
+  }
+}
+```
+
+**Production Configuration (appsettings.Production.json):**
+
+```json
+{
+  "ConnectionStrings": {
+    "MongoDB": "@Microsoft.KeyVault(SecretUri=https://hragent-vault.vault.azure.net/secrets/MongoConnectionString)"
+  },
+  "MongoDB": {
+    "DatabaseName": "HRAgent-Prod"
+  }
+}
+```
+
+**Key Vault Integration:**
+- Production connection strings stored in Azure Key Vault
+- App Service automatically resolves @Microsoft.KeyVault references
+- Managed Identity authenticates App Service to Key Vault
+- Secret rotation without redeploying application
+- No passwords in code or configuration files
+
+### Local Development with .NET Aspire
+
+**AppHost Configuration (HRAgent.AppHost/Program.cs):**
+
+```csharp
+var builder = DistributedApplication.CreateBuilder(args);
+
+// Add MongoDB container with data persistence
+var mongodb = builder.AddMongoDB("mongodb")
+    .WithDataVolume();  // Persist data across restarts
+
+// Add database reference
+var database = mongodb.AddDatabase("hragent-db");
+
+// Add API project with MongoDB reference
+var api = builder.AddProject<Projects.HRAgent_Api>("hragent-api")
+    .WithReference(database);  // Automatic connection injection
+
+builder.Build().Run();
+```
+
+**Aspire Benefits:**
+- **Automatic Service Discovery:** Connection strings injected automatically
+- **Container Orchestration:** Manages MongoDB container lifecycle (start, stop, cleanup)
+- **Development Dashboard:** Visual monitoring of services, logs, and connections
+- **Environment Parity:** Mimics production patterns locally
+- **Zero Manual Setup:** No manual Docker Compose or connection string management
+
+**API Project Consumption:**
+
+```csharp
+// HRAgent.Api/Program.cs
+builder.AddMongoDBClient("mongodb");  // Aspire extension method
+
+// Automatically configures IMongoClient from Aspire-managed connection
+// Developers don't manage connection strings manually
+```
+
+### Data Modeling Patterns
+
+**Document-Oriented Design**
+
+MongoDB's document model differs from relational databases. HRAgent uses embedded and referenced patterns strategically:
+
+**Embedded Documents Pattern (1-to-1 or 1-to-few):**
+
+```csharp
+public class Employee
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }
+
+    public string Name { get; set; }
+    public string Email { get; set; }
+
+    // Embedded address (1-to-1 relationship)
+    public Address Address { get; set; }
+
+    // Embedded phone numbers (1-to-few relationship)
+    public List<PhoneNumber> PhoneNumbers { get; set; }
+}
+
+public class Address
+{
+    public string Street { get; set; }
+    public string City { get; set; }
+    public string Country { get; set; }
+    public string PostalCode { get; set; }
+}
+```
+
+**Referenced Documents Pattern (Many-to-many):**
+
+```csharp
+public class PTORequest
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }
+
+    // Reference to employee (many requests to one employee)
+    public string EmployeeId { get; set; }
+
+    // Reference to manager (many requests to one manager)
+    public string ManagerId { get; set; }
+
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public string Status { get; set; }
+}
+```
+
+**Modeling Guidelines:**
+- **Embed** when data is always accessed together (1-to-1, 1-to-few)
+- **Reference** when data is accessed independently or shared (many-to-many)
+- **Consider Document Size:** Maximum 16MB per document in MongoDB
+- **Optimize for Read Patterns:** Structure documents to minimize queries
+
+### Indexing Strategy
+
+**Azure DocumentDB Indexing:**
+- Auto-indexes `_id` field only by default
+- Manual indexes required for query performance
+- Indexes consume storage and impact write performance
+- Balance query speed vs. storage cost
+
+**Index Creation Example:**
+
+```csharp
+// Create single field index
+await collection.Indexes.CreateOneAsync(
+    new CreateIndexModel<Employee>(
+        Builders<Employee>.IndexKeys.Ascending(x => x.Email),
+        new CreateIndexOptions { Unique = true }
+    )
+);
+
+// Create compound index for complex queries
+await collection.Indexes.CreateOneAsync(
+    new CreateIndexModel<PTORequest>(
+        Builders<PTORequest>.IndexKeys
+            .Ascending(x => x.EmployeeId)
+            .Descending(x => x.StartDate)
+    )
+);
+```
+
+**Indexing Best Practices:**
+- Index fields used in query filters (`Find` predicates)
+- Index fields used for sorting (`Sort`)
+- Monitor query performance with Application Insights
+- Remove unused indexes to reduce storage costs
+
+### Performance Optimization
+
+**Connection Pooling:**
+- MongoClient maintains internal connection pool
+- Register MongoClient as Singleton (not Scoped or Transient)
+- Default max pool size: 100 connections
+- Connections reused across requests
+
+**Query Optimization:**
+- Use projections to retrieve only needed fields
+- Leverage indexes for efficient filtering
+- Monitor p95 query duration (target: <50ms)
+- Use Application Insights dependency tracking
+
+**Azure DocumentDB Scaling:**
+- **Vertical Scaling:** Increase vCores/RAM for CPU-intensive workloads
+- **Horizontal Scaling:** Auto-sharding for large datasets (>2TB)
+- **Autoscale:** M200-Autoscale automatically adjusts capacity
+- **Working Set:** Keep frequently accessed data in RAM for best performance
+
+### Security Architecture
+
+**Network Security:**
+- Azure DocumentDB: Private endpoints eliminate public internet exposure
+- Virtual Network Integration: App Service connects via private network
+- Firewall Rules: IP allowlist for development and CI/CD pipelines
+
+**Authentication:**
+- Azure DocumentDB: Connection string authentication (SCRAM-SHA-256)
+- Future: Managed Identity support when available
+- Local MongoDB: No authentication in development (isolated container)
+
+**Data Protection:**
+- TLS/SSL: Required for all Azure DocumentDB connections
+- Encryption at Rest: Azure-managed encryption for all data
+- Key Vault: Connection strings secured, never in code
+- Managed Identity: Passwordless App Service to Key Vault authentication
+
+**Audit Trail:**
+- Immutable audit logs stored as BSON documents
+- Append-only collection with timestamp, user, action, reasoning
+- 7-year retention for compliance
+- Complete decision lineage (trace back from outcome to input)
+
+### Migration from Cosmos DB NoSQL API
+
+**Current State:**
+HRAgent previously used (or is migrating from) Azure Cosmos DB NoSQL API, which uses SQL-like queries and a different SDK.
+
+**Migration Requirements:**
+- **Code Changes:** Replace Microsoft.Azure.Cosmos SDK with MongoDB.Driver
+- **Query Syntax:** Convert SQL-like queries to MongoDB query expressions
+- **Data Models:** Add MongoDB attributes (`[BsonId]`, `[BsonElement]`)
+- **Connection Strings:** Update to MongoDB connection string format
+- **Configuration:** New configuration keys for MongoDB settings
+
+**Azure Portal Migration Tool:**
+- Online Migration: Minimal downtime with continuous sync and cutover
+- Offline Migration: Snapshot-based for non-production environments
+- Index Migration: Use provided script to pre-create indexes
+- Data Validation: Verify integrity post-migration
+
+**Migration Phases:**
+1. **Infrastructure:** Provision Azure DocumentDB, configure Key Vault
+2. **Code Refactoring:** Implement repository pattern with MongoDB.Driver
+3. **Testing:** Integration tests with Testcontainers (real MongoDB)
+4. **Data Migration:** Azure Portal migration job with validation
+5. **Deployment:** Blue/green deployment with rollback plan
+
+### Monitoring and Observability
+
+**Application Insights Integration:**
+- Automatic MongoDB dependency tracking
+- Query duration metrics (p50, p95, p99)
+- Connection pool utilization monitoring
+- Exception and error tracking
+- Custom telemetry for business metrics
+
+**Azure Monitor:**
+- Azure DocumentDB metrics (CPU, memory, storage, IOPS)
+- Autoscale behavior monitoring
+- Cost tracking and budget alerts
+- Performance anomaly detection
+
+**Health Checks:**
+- Database connectivity health checks
+- Query performance health checks
+- Connection pool health monitoring
+- Automated alerting for degradation
+
+### Testing Strategy
+
+**Unit Tests:**
+- Mock IMongoCollection<T> for repository unit tests
+- Test business logic without database dependencies
+- Fast execution (no I/O)
+
+**Integration Tests:**
+- Testcontainers for real MongoDB in tests
+- Test repositories against actual database
+- Automated test data setup and teardown
+- CI/CD pipeline integration
+
+```csharp
+[Fact]
+public async Task CanInsertAndRetrieveEmployee()
+{
+    // Testcontainers spins up MongoDB container for this test
+    var client = new MongoClient("mongodb://localhost:27017");
+    var database = client.GetDatabase("test");
+    var repository = new EmployeeRepository(database);
+
+    var employee = new Employee { Name = "Test", Email = "test@example.com" };
+    await repository.CreateAsync(employee);
+
+    var result = await repository.GetByIdAsync(employee.Id);
+    Assert.Equal("Test", result.Name);
+}
+```
+
+**Load Testing:**
+- Azure Load Testing for production-like scenarios
+- Measure database performance under load
+- Validate autoscaling behavior
+- Identify bottlenecks and optimization opportunities
+
+### Cost Management
+
+**Azure DocumentDB Autoscale Pricing:**
+- M200-Autoscale: Scales M80-M200 range dynamically
+- Pay-as-you-use: Charged for actual capacity used (hourly billing)
+- 50% premium over base tier for instant scaling
+- Cost savings: Up to 18% vs. overprovisioned M200 for variable workloads
+- Below 35% utilization: Minimum price applies
+- Above 35% utilization: Maximum price applies
+
+**Cost Optimization Strategies:**
+- Monitor utilization patterns with Azure Monitor
+- Right-size compute tier based on actual usage
+- Use reserved capacity for predictable workloads (future option)
+- Implement query optimization to reduce CPU load
+- Archive old data to reduce storage costs
+- Local development has zero cloud costs
+
+**Budget Monitoring:**
+- Azure Cost Management dashboards
+- Budget alerts for spending thresholds
+- Resource tagging for cost attribution
+- Monthly cost reviews and optimization
+
 ## Web Application Specific Requirements
 
 ### Project-Type Overview
@@ -487,6 +1007,8 @@ HRAgent is architected as a **Single Page Application (SPA)** built with React.j
 - **API Layer:** RESTful HTTP endpoints for message submission, SSE for server-to-client streaming
 - **Authentication:** Azure AD/SSO integration with secure token-based authentication
 - **State Synchronization:** Bidirectional state updates via STATE_SNAPSHOT and STATE_DELTA events
+- **Database Access:** MongoDB.Driver for consistent API across local and production environments
+- **Data Layer:** Repository pattern with dependency injection for testability and maintainability
 
 ### Browser Support Matrix
 
@@ -640,12 +1162,21 @@ HRAgent's MVP strategy prioritizes **trust-building through reliability** over f
 - **Duration:** 3 months (12 weeks)
 - **Team Composition:**
   - 1 Product Manager (strategy, roadmap, stakeholder alignment)
-  - 1 Backend Developer (.NET/C#, Agent Framework, Azure integration)
+  - 1 Backend Developer (.NET/C#, Agent Framework, Azure integration, MongoDB.Driver, Azure DocumentDB management)
   - 1 Frontend Developer (React.js, TypeScript, CopilotKit/AG-UI)
   - 1 AI/LLM Engineer (prompt engineering, RAG implementation, model optimization)
   - 1 QA/Test Engineer (functional testing, compliance validation, user acceptance)
-  - 1 DevOps Engineer (part-time: Azure infrastructure, CI/CD, deployment)
+  - 1 DevOps Engineer (part-time: Azure infrastructure, CI/CD, deployment, Azure DocumentDB management)
 - **Total Team Size:** 4-6 people (5 full-time + 1 part-time)
+- **Key Technical Skills:**
+  - **MongoDB.Driver for .NET:** CRUD operations, LINQ queries, indexing, async/await patterns, connection pooling
+  - **Azure DocumentDB:** Cluster provisioning, M200-Autoscale configuration, performance optimization, autoscaling management
+  - **.NET Aspire Orchestration:** AppHost configuration, service discovery, container lifecycle management
+  - **Repository Pattern & DDD:** Interface design, aggregate roots, dependency injection, separation of concerns
+  - **Azure Key Vault Integration:** Secret management, Managed Identity authentication, connection string security
+  - **Database Migration:** Azure Portal migration tools, mongodump/mongorestore, index migration, data validation
+  - **Performance Monitoring:** Application Insights dependency tracking, query optimization, working set management
+  - **Testing:** Testcontainers for integration tests, MongoDB in CI/CD pipelines
 
 **Budget Considerations:**
 - Development team labor (3 months)
@@ -817,6 +1348,11 @@ HRAgent's MVP strategy prioritizes **trust-building through reliability** over f
 | **SSE Connection Stability** | Low | Medium | Automatic reconnection logic; graceful degradation to polling; connection health monitoring |
 | **Intent Recognition Accuracy Below Target** | Medium | High | Extensive user testing pre-launch; A/B testing of prompt strategies; fallback to guided clarification; track correction rates |
 | **Azure AI Foundry Endpoint Latency** | Low | Medium | Monitor p95 latency; optimize prompts for token efficiency; implement timeout with user feedback |
+| **Azure DocumentDB Query Performance** | Low | Medium | Implement proper indexing strategy; monitor query performance with Application Insights; optimize document structure for read patterns; ensure working set fits in RAM |
+| **Local/Production Environment Parity** | Low | Medium | Use same MongoDB.Driver API for both; maintain MongoDB version alignment; comprehensive integration testing with Testcontainers; Aspire orchestration mirrors production patterns |
+| **Database Migration Data Integrity** | Low | High | Use online migration mode for production; validate data post-migration; maintain Cosmos DB backup until cutover validated; comprehensive migration testing in staging |
+| **Azure DocumentDB Query Performance** | Low | Medium | Implement proper indexing strategy; monitor query performance with Application Insights; optimize document structure for read patterns |
+| **Local/Production Environment Parity** | Low | Medium | Use same MongoDB.Driver API for both; maintain MongoDB version alignment; comprehensive integration testing with Testcontainers |
 
 **Market Risks:**
 
@@ -963,15 +1499,37 @@ All HIGH or CRITICAL impact risks have multiple layers of mitigation. The MVP de
 - **FR50:** The system can write timesheet entries to Factorial HR
 - **FR51:** The system can sync data changes in near-real-time
 - **FR52:** The system can handle Factorial API errors gracefully with user feedback
+- **FR53:** The system can store conversation history and user preferences in Azure DocumentDB
+- **FR54:** The system can retrieve conversation context efficiently for multi-turn interactions
+- **FR55:** The system can maintain data consistency between HRAgent database and Factorial HR
+- **FR56:** The system can support local development with MongoDB containers managed by .NET Aspire
+- **FR57:** The system can use MongoDB.Driver for both local and production database access
+- **FR58:** The system can implement repository pattern with generic IMongoCollection<T> interfaces
+- **FR59:** The system can store BSON documents with type-safe C# models
+- **FR60:** The system can perform CRUD operations using async/await patterns
+- **FR61:** The system can execute LINQ queries translated to MongoDB query syntax
+- **FR62:** The system can manage database indexes for optimal query performance
+- **FR63:** The system can store immutable audit logs as append-only BSON documents
+- **FR64:** The system can retrieve connection strings from Azure Key Vault in production
+- **FR65:** The system can use environment-based configuration (appsettings.Development/Production.json)
+- **FR66:** The system can inject IMongoClient as singleton via dependency injection
+- **FR67:** The system can inject repositories as scoped services via dependency injection
 
 ### 9. Administration & Analytics
 
-- **FR53:** HR administrators can access usage analytics dashboard
-- **FR54:** The system can track adoption metrics (users, requests, completions)
-- **FR55:** The system can track performance metrics (response times, completion rates, errors)
-- **FR56:** The system can track satisfaction metrics via pulse survey integration
-- **FR57:** HR administrators can view exception queues and handle edge cases
-- **FR58:** HR administrators can configure system policies and thresholds## Non-Functional Requirements
+- **FR68:** HR administrators can access usage analytics dashboard
+- **FR69:** The system can track adoption metrics (users, requests, completions)
+- **FR70:** The system can track performance metrics (response times, completion rates, errors)
+- **FR71:** The system can track satisfaction metrics via pulse survey integration
+- **FR72:** HR administrators can view exception queues and handle edge cases
+- **FR73:** HR administrators can configure system policies and thresholds
+- **FR74:** System administrators can monitor database performance metrics (query duration, connection pool usage, working set size)
+- **FR75:** System administrators can manage database indexes for optimal query performance
+- **FR76:** System administrators can view Azure DocumentDB autoscale behavior and utilization
+- **FR77:** System administrators can track database costs and resource consumption
+- **FR78:** System administrators can export audit logs for compliance reporting
+- **FR79:** System administrators can monitor MongoDB.Driver connection pool health
+- **FR80:** The system can generate database performance reports (slow queries, index usage, document sizes)## Non-Functional Requirements
 
 ### Performance
 
@@ -1000,8 +1558,10 @@ All HIGH or CRITICAL impact risks have multiple layers of mitigation. The MVP de
 - **NFR-SC1:** The system must support linear scaling from 200 to 500 users with <10% performance degradation
 - **NFR-SC2:** Azure Container Apps must auto-scale based on CPU and request volume metrics
 - **NFR-SC3:** The system must handle 10x daily usage spikes (e.g., Friday timesheet deadline) without service degradation
-- **NFR-SC4:** Database connections must be pooled and reused efficiently to support concurrent operations
-- **NFR-SC5:** LLM token consumption must be monitored and optimized to stay within budget projections
+- **NFR-SC4:** Database connections must be pooled and reused efficiently via MongoDB.Driver connection pooling
+- **NFR-SC5:** Azure DocumentDB must utilize M200-Autoscale tier for automatic capacity adjustment
+- **NFR-SC6:** Database working set must remain in memory for optimal performance (scale compute as needed)
+- **NFR-SC7:** LLM token consumption must be monitored and optimized to stay within budget projections
 
 ### Reliability & Availability
 
@@ -1021,6 +1581,14 @@ All HIGH or CRITICAL impact risks have multiple layers of mitigation. The MVP de
 - **NFR-I4:** The system must handle Factorial API rate limits gracefully (implement caching and request batching)
 - **NFR-I5:** The system must detect and alert on Factorial API schema changes that could break integration
 - **NFR-I6:** All integration errors must provide actionable feedback to users (not generic error messages)
+- **NFR-I7:** MongoDB database queries must achieve p95 latency <50ms for typical CRUD operations
+- **NFR-I8:** Local development environment must achieve feature parity with production using same MongoDB.Driver API
+- **NFR-I9:** Database connection failures must be retried with exponential backoff and circuit breaker patterns
+- **NFR-I10:** MongoDB.Driver connection pool must maintain optimal size (default 100 max connections)
+- **NFR-I11:** Database working set must remain in memory for optimal performance (scale Azure DocumentDB compute as needed)
+- **NFR-I12:** Azure DocumentDB autoscale must respond to traffic spikes within 60 seconds
+- **NFR-I13:** Database indexes must be optimized for query patterns (review quarterly)
+- **NFR-I14:** Document sizes must remain under 1MB for optimal performance (16MB hard limit)
 
 ### Usability & User Experience
 
@@ -1037,8 +1605,14 @@ All HIGH or CRITICAL impact risks have multiple layers of mitigation. The MVP de
 - **NFR-O2:** System performance metrics must be collected and visualized in real-time dashboards
 - **NFR-O3:** The system must track and report on success criteria metrics (adoption, satisfaction, time savings, completion rates)
 - **NFR-O4:** Application Insights must provide comprehensive telemetry for troubleshooting
-- **NFR-O5:** Cost metrics (LLM tokens, Azure resources) must be tracked and reported daily
+- **NFR-O5:** Cost metrics (LLM tokens, Azure resources, database utilization) must be tracked and reported daily
 - **NFR-O6:** The system must generate weekly reports on usage patterns, errors, and performance trends
+- **NFR-O7:** Application Insights must track MongoDB dependency calls with duration, success/failure, and query details
+- **NFR-O8:** Azure Monitor must track Azure DocumentDB metrics (CPU, memory, storage, IOPS, connection count)
+- **NFR-O9:** Database query performance must be monitored with alerts for p95 latency >100ms
+- **NFR-O10:** Connection pool exhaustion must trigger immediate alerts to operations team
+- **NFR-O11:** Azure DocumentDB autoscale behavior must be logged and visualized for cost optimization
+- **NFR-O12:** Slow queries (>100ms) must be logged with full query details for optimization
 
 ### Compliance & Audit
 

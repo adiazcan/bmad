@@ -4,17 +4,23 @@ inputDocuments:
   - /home/adiaz/github/bmad/_bmad-output/prd.md
   - /home/adiaz/github/bmad/_bmad-output/project-planning-artifacts/ux-design-specification.md
   - /home/adiaz/github/bmad/_bmad-output/project-planning-artifacts/research/technical-microsoft-agent-framework-agui-research-2025-12-25.md
+  - /home/adiaz/github/bmad/_bmad-output/project-planning-artifacts/research/technical-azure-documentdb-mongodb-migration-2025-12-28.md
 documentCounts:
   prd: 1
   ux: 1
-  research: 1
+  research: 2
 workflowType: 'architecture'
 lastStep: 8
 status: 'complete'
 completedAt: '2025-12-25'
+updatedAt: '2025-12-28'
 project_name: 'bmad'
 user_name: 'Alberto'
 date: '2025-12-25'
+architectureUpdates:
+  - date: '2025-12-28'
+    changes: 'Migrated from Cosmos DB NoSQL API to Azure DocumentDB (production) + MongoDB (local development) with unified MongoDB.Driver, added comprehensive migration guide'
+    researchSource: 'technical-azure-documentdb-mongodb-migration-2025-12-28.md'
 ---
 
 # Architecture Decision Document - bmad
@@ -314,29 +320,154 @@ These architectural decisions are prioritized by implementation sequence and cro
 
 ### Data Architecture Decisions
 
-#### Conversation State Storage: Azure Cosmos DB Serverless
+#### Conversation State Storage: Azure DocumentDB (Production) + MongoDB (Local)
 
-**Decision:** Use Azure Cosmos DB Serverless with NoSQL API for conversation state persistence.
+**Decision:** Use Azure DocumentDB for production with MongoDB for local development, unified via MongoDB.Driver.
 
-**Selected Option:** Azure Cosmos DB Serverless (NoSQL API)
+**Selected Option:** Azure DocumentDB (Production) + MongoDB Community Edition (Local Development)
 
 **Rationale:**
-- **Serverless pricing model** - Pay only for RU/s consumed, auto-scales from zero (perfect for MVP with uncertain load)
-- **Low-latency queries** - Single-digit millisecond reads by `threadId` partition key (critical for <3s API latency requirement)
-- **JSON-native storage** - Store conversation messages, agent state, and context as JSON documents without ORM impedance mismatch
-- **Azure-native integration** - Microsoft.EntityFrameworkCore.Cosmos for type-safe querying, Azure AD authentication
-- **Global distribution ready** - Can add read replicas in future for geographic expansion (not needed for MVP)
+- **MongoDB API Compatibility** - Azure DocumentDB provides 99.02% MongoDB Query Language compatibility with native MongoDB Wire Protocol support
+- **Unified Driver** - Single `MongoDB.Driver` NuGet package works for both local and cloud environments (zero code changes between environments)
+- **Local Development Excellence** - MongoDB in Docker containers provides cost-free local development with feature parity
+- **Production-Grade Scaling** - Azure DocumentDB M200-Autoscale tier with automatic vertical/horizontal scaling, instant capacity adjustment
+- **Modern Architecture** - Environment-specific databases (managed cloud for production, containerized for local) following industry best practices
+- **Cost Efficiency** - No cloud costs for local development, autoscale pricing (pay-as-you-use) for production with 50% premium for instant scaling
+
+**MongoDB API Benefits:**
+- Same MongoDB driver, queries, and operations work identically in both environments
+- Rich query language with aggregation pipeline support (96.67% stages, 100% operators)
+- Flexible document model without rigid schema constraints
+- BSON format with native support for complex types (DateTime, ObjectId, Binary)
+- Strong LINQ integration for type-safe queries in C#
 
 **Alternatives Considered:**
-- ❌ **Azure SQL Database** - Relational schema overhead for JSON conversations, higher cost for spiky workloads
-- ❌ **Azure Table Storage** - No complex queries, limited to key-value patterns
-- ❌ **Azure Blob Storage** - No queryability, requires full scan for conversation retrieval
+- ❌ **Cosmos DB NoSQL API** - Different query language (SQL-like), requires significant code changes, no local development parity
+- ❌ **Azure SQL Database** - Relational schema overhead for JSON conversations, higher cost for spiky workloads, poor document flexibility
+- ❌ **Azure Table Storage** - No complex queries, limited to key-value patterns, no local development story
 
 **Implementation Impact:**
-- Backend: Add `Microsoft.EntityFrameworkCore.Cosmos` NuGet package
-- Data Model: Define `ConversationThread`, `Message`, `AgentState` entities with `threadId` partition key
-- Configuration: Connection string in Azure Key Vault, `appsettings.json` reference
-- Cost: ~$0.25/million RU for serverless (estimate $5-10/month for 200 users)
+
+**Backend Dependencies:**
+```csharp
+// Add MongoDB.Driver (unified for local and cloud)
+dotnet add package MongoDB.Driver
+dotnet add package Aspire.MongoDB.Driver  // For .NET Aspire orchestration
+```
+
+**Data Models (MongoDB-Compatible):**
+```csharp
+public class ConversationThread
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }  // MongoDB ObjectId
+    
+    public string ThreadId { get; set; }  // Application thread identifier
+    public string UserId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public List<Message> Messages { get; set; } = new();
+}
+
+public class Message
+{
+    public string Role { get; set; }  // "user" or "assistant"
+    public string Text { get; set; }
+    public DateTime Timestamp { get; set; }
+}
+```
+
+**Configuration (Environment-Based):**
+```json
+// appsettings.Development.json (Local MongoDB)
+{
+  "MongoDB": {
+    "ConnectionString": "mongodb://localhost:27017",
+    "DatabaseName": "HRAgent-Dev"
+  }
+}
+
+// appsettings.Production.json (Azure DocumentDB)
+{
+  "MongoDB": {
+    "ConnectionString": "", // Loaded from Azure Key Vault
+    "DatabaseName": "HRAgent-Prod"
+  }
+}
+```
+
+**Service Registration:**
+```csharp
+// Program.cs - Same code works for both environments
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("MongoDB");
+    return new MongoClient(connectionString);
+});
+
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var databaseName = builder.Configuration["MongoDB:DatabaseName"];
+    return client.GetDatabase(databaseName);
+});
+```
+
+**.NET Aspire Orchestration (Local Development):**
+```csharp
+// AppHost/Program.cs
+var mongodb = builder.AddMongoDB("mongodb")
+    .WithDataVolume()  // Persist data across restarts
+    .AddDatabase("hragent-db");
+
+builder.AddProject<Projects.HRAgent_Api>("hragent-api")
+    .WithReference(mongodb);  // Automatic connection string injection
+```
+
+**Repository Pattern:**
+```csharp
+public class ConversationRepository
+{
+    private readonly IMongoCollection<ConversationThread> _conversations;
+    
+    public ConversationRepository(IMongoDatabase database)
+    {
+        _conversations = database.GetCollection<ConversationThread>("conversations");
+    }
+    
+    public async Task<ConversationThread> GetByThreadIdAsync(string threadId)
+    {
+        return await _conversations
+            .Find(c => c.ThreadId == threadId)
+            .FirstOrDefaultAsync();
+    }
+    
+    public async Task AddAsync(ConversationThread thread)
+    {
+        await _conversations.InsertOneAsync(thread);
+    }
+}
+```
+
+**Cost Estimates:**
+- **Local Development**: $0/month (MongoDB Community in Docker)
+- **Production (Azure DocumentDB M200-Autoscale)**: ~$500-1,000/month depending on utilization (scales M80-M200 range)
+- **Migration from Cosmos DB**: Use Azure Portal migration tool (online mode for zero-downtime migration)
+
+**Migration Path from Cosmos DB NoSQL:**
+1. Provision Azure DocumentDB cluster (M200-Autoscale recommended)
+2. Update code from `Microsoft.Azure.Cosmos` SDK to `MongoDB.Driver`
+3. Refactor queries from Cosmos SQL syntax to MongoDB queries
+4. Use Azure Portal migration job (online mode) to migrate existing data
+5. Pre-create indexes on target collections
+6. Validate data integrity and cutover
+
+**Key Advantages:**
+- **Developer Experience**: Same API locally and in production, fast iteration without cloud costs
+- **Environment Parity**: Eliminates environment-specific bugs from database differences
+- **MongoDB Ecosystem**: Access to rich tooling (MongoDB Compass, Studio 3T, mongosh)
+- **Performance**: Low-latency reads (<10ms p95) with proper indexing
+- **Scalability**: Azure DocumentDB handles automatic sharding when data exceeds terabytes
 
 #### Audit Logging Storage: Azure Blob Storage (Append Blobs)
 
@@ -390,27 +521,70 @@ These architectural decisions are prioritized by implementation sequence and cro
 - MVP: No caching packages, no cache invalidation logic
 - Post-MVP: Consider Azure Redis Cache with cache-aside pattern if metrics justify
 
-#### Pattern Recognition Storage: Cosmos DB Separate Container
+#### Pattern Recognition Storage: MongoDB Separate Collection
 
-**Decision:** Store user behavior patterns in separate Cosmos DB container with `userId` partition key.
+**Decision:** Store user behavior patterns in separate MongoDB collection with `userId` as index key.
 
-**Selected Option:** Separate `user-patterns` container in same Cosmos DB account
+**Selected Option:** Separate `user-patterns` collection in same MongoDB database (both local and Azure DocumentDB)
 
 **Rationale:**
 - **Logical separation** - Conversation threads (short-lived, high write) vs. patterns (long-lived, read-heavy) have different access patterns
-- **Independent scaling** - Can allocate separate RU/s if pattern queries become bottleneck
-- **Partition key optimization** - `userId` partition key enables efficient single-user pattern lookups (vs. cross-partition queries)
-- **Schema flexibility** - Pattern data structure can evolve independently from conversation schema
+- **Index optimization** - Create index on `userId` for efficient single-user pattern lookups
+- **Schema flexibility** - MongoDB document model allows pattern data structure to evolve independently from conversation schema
+- **Unified database approach** - All application data in one MongoDB database simplifies connection management
 
 **Alternatives Considered:**
-- ❌ **Same container as conversations** - Mixed partition keys, difficult to optimize performance
-- ❌ **Separate Cosmos DB account** - Unnecessary cost and operational overhead for MVP
+- ❌ **Same collection as conversations** - Mixed document types, difficult to optimize queries and indexes
+- ❌ **Separate MongoDB database** - Unnecessary operational overhead for MVP
 - ❌ **Azure Cognitive Search** - Overkill for simple key-value pattern lookups
 
 **Implementation Impact:**
-- Data Model: Define `UserPatterns` entity with `userId` partition key, fields for timesheet patterns, approval thresholds, reminder preferences
-- EF Core: Add `DbSet<UserPatterns>` to Cosmos DB context
-- Queries: Single-partition reads by `userId` (low latency, low RU cost)
+```csharp
+// Data Model
+public class UserPattern
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }
+    
+    public string UserId { get; set; }  // Indexed for fast lookups
+    public int TimesheetDayOfWeek { get; set; }  // 1=Monday, 5=Friday
+    public TimeSpan PreferredSubmissionTime { get; set; }
+    public int ApprovalThreshold { get; set; }  // Days threshold for auto-approval suggestions
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+// Repository
+public class PatternRepository
+{
+    private readonly IMongoCollection<UserPattern> _patterns;
+    
+    public PatternRepository(IMongoDatabase database)
+    {
+        _patterns = database.GetCollection<UserPattern>("user-patterns");
+        
+        // Create index on userId for fast lookups
+        _patterns.Indexes.CreateOne(
+            new CreateIndexModel<UserPattern>(
+                Builders<UserPattern>.IndexKeys.Ascending(p => p.UserId),
+                new CreateIndexOptions { Unique = true }
+            )
+        );
+    }
+    
+    public async Task<UserPattern> GetByUserIdAsync(string userId)
+    {
+        return await _patterns
+            .Find(p => p.UserId == userId)
+            .FirstOrDefaultAsync();
+    }
+}
+```
+
+**Performance:**
+- Index on `userId` enables single-document lookups (O(log n) with B-tree index)
+- Works identically in local MongoDB and Azure DocumentDB
+- Low latency (<10ms p95) for indexed queries
 
 ### Authentication & Security Decisions
 
@@ -614,10 +788,10 @@ These decisions create a critical path for implementation:
 Frontend (MSAL.js) → Azure AD → Backend (Microsoft.Identity.Web) → Factorial API (Bearer token forwarding)
 
 **Data Flow:**
-User message → CopilotKit (SSE) → Agent Framework → Factorial Client (Polly) → Cosmos DB (EF Core) → Audit Logger (Blob Storage)
+User message → CopilotKit (SSE) → Agent Framework → Factorial Client (Polly) → MongoDB (MongoDB.Driver) → Audit Logger (Blob Storage)
 
 **State Synchronization:**
-Agent STATE_SNAPSHOT → Backend (Cosmos DB) → Frontend (Zustand) → UI (React)
+Agent STATE_SNAPSHOT → Backend (MongoDB) → Frontend (Zustand) → UI (React)
 
 **Observability:**
 All components → Application Insights → Azure Portal dashboards
@@ -629,7 +803,8 @@ All components → Application Insights → Azure Portal dashboards
 - ASP.NET Core Minimal APIs
 - Microsoft Agent Framework 1.0.0+
 - Microsoft.Identity.Web 3.3.1+
-- Entity Framework Core Cosmos 10.0+
+- MongoDB.Driver 2.29.0+ (unified driver for local MongoDB and Azure DocumentDB)
+- Aspire.MongoDB.Driver (for .NET Aspire orchestration)
 - Polly 8.5.0+
 - Azure.Storage.Blobs 12.25.0+
 - Azure.AI.OpenAI 2.5.0+
@@ -646,7 +821,8 @@ All components → Application Insights → Azure Portal dashboards
 
 **Azure Services:**
 - Azure Container Apps (hosting)
-- Azure Cosmos DB Serverless (NoSQL API)
+- Azure DocumentDB M200-Autoscale (production MongoDB-compatible database)
+- MongoDB Community Edition (local development in Docker containers)
 - Azure Blob Storage (append blobs with immutability)
 - Azure AI Foundry (managed LLM endpoints)
 - Azure Active Directory (SSO authentication)
@@ -657,6 +833,513 @@ All components → Application Insights → Azure Portal dashboards
 - dotnet CLI
 - npm/Vite CLI
 - Azure CLI
+
+### Database Migration Strategy: Cosmos DB NoSQL → Azure DocumentDB + MongoDB
+
+**Migration Context:**  
+If migrating from existing Cosmos DB NoSQL API implementation, this section provides the complete migration path to Azure DocumentDB (production) with MongoDB (local development).
+
+#### Migration Benefits
+
+**Developer Experience:**
+- **Unified API**: Same MongoDB.Driver code works locally and in production
+- **Cost Savings**: $0/month for local development (MongoDB in Docker vs. Cosmos DB emulator limitations)
+- **Better Tooling**: MongoDB Compass, Studio 3T, mongosh for database management
+- **Environment Parity**: Eliminates environment-specific database bugs
+
+**Production Benefits:**
+- **MongoDB Ecosystem**: 99.02% MongoDB Query Language compatibility
+- **Autoscaling**: M200-Autoscale tier scales instantly (M80-M200 range)
+- **Performance**: Similar latency to Cosmos DB NoSQL with better cost efficiency
+- **Native Features**: Built-in vector search, auto-sharding without manual configuration
+
+**Cost Comparison:**
+- **Cosmos DB NoSQL Serverless**: ~$0.25/million RU, unpredictable costs with spiky workloads
+- **Azure DocumentDB M200-Autoscale**: $500-1,000/month with predictable autoscale pricing
+- **Local Development**: $0 (MongoDB Community in Docker) vs. Cosmos DB emulator limitations
+
+#### Migration Phases
+
+**Phase 1: Infrastructure Provisioning (Week 1)**
+
+Tasks:
+1. Provision Azure DocumentDB cluster (M200-Autoscale recommended for production)
+2. Set up MongoDB locally with .NET Aspire orchestration
+3. Configure Azure Key Vault for production connection strings
+4. Set up Managed Identity for secure Key Vault access
+
+Azure CLI Commands:
+```bash
+# Create Azure DocumentDB cluster
+az documentdb create \
+  --name hragent-prod \
+  --resource-group hragent-rg \
+  --kind MongoDB \
+  --server-version 5.0 \
+  --default-consistency-level Strong \
+  --enable-automatic-failover true
+
+# Get connection string and store in Key Vault
+CONNECTION_STRING=$(az documentdb keys list \
+  --name hragent-prod \
+  --resource-group hragent-rg \
+  --type connection-strings \
+  --query "connectionStrings[0].connectionString" -o tsv)
+
+az keyvault secret set \
+  --vault-name hragent-kv \
+  --name MongoDbConnectionString \
+  --value "$CONNECTION_STRING"
+```
+
+**.NET Aspire Configuration (Local Development):**
+```csharp
+// HRAgent.AppHost/Program.cs
+var builder = DistributedApplication.CreateBuilder(args);
+
+var mongodb = builder.AddMongoDB("mongodb")
+    .WithDataVolume()  // Persist data across restarts
+    .AddDatabase("hragent-db");
+
+var api = builder.AddProject<Projects.HRAgent_Api>("hragent-api")
+    .WithReference(mongodb);  // Automatic connection string injection
+
+builder.Build().Run();
+```
+
+---
+
+**Phase 2: Code Migration (Week 2)**
+
+Replace EF Core Cosmos with MongoDB.Driver:
+
+**Remove Cosmos DB Packages:**
+```bash
+dotnet remove package Microsoft.EntityFrameworkCore.Cosmos
+```
+
+**Add MongoDB Packages:**
+```bash
+dotnet add package MongoDB.Driver --version 2.29.0
+dotnet add package Aspire.MongoDB.Driver
+```
+
+**Update Data Models:**
+```csharp
+// OLD: EF Core Cosmos
+public class ConversationThread
+{
+    public string id { get; set; }  // Cosmos DB lowercase id
+    public string ThreadId { get; set; }
+    public string UserId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public List<Message> Messages { get; set; }
+}
+
+// NEW: MongoDB.Driver
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
+
+public class ConversationThread
+{
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }  // MongoDB _id field
+    
+    public string ThreadId { get; set; }
+    public string UserId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public List<Message> Messages { get; set; } = new();
+}
+```
+
+**Replace DbContext with Repositories:**
+```csharp
+// OLD: EF Core DbContext
+public class AppDbContext : DbContext
+{
+    public DbSet<ConversationThread> Conversations { get; set; }
+    
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ConversationThread>()
+            .ToContainer("conversations")
+            .HasPartitionKey(e => e.ThreadId);
+    }
+}
+
+// Usage
+var thread = await db.Conversations
+    .FirstOrDefaultAsync(c => c.ThreadId == threadId);
+
+// NEW: MongoDB Repository
+public class ConversationRepository
+{
+    private readonly IMongoCollection<ConversationThread> _conversations;
+    
+    public ConversationRepository(IMongoDatabase database)
+    {
+        _conversations = database.GetCollection<ConversationThread>("conversations");
+        
+        // Create index for fast lookups
+        _conversations.Indexes.CreateOne(
+            new CreateIndexModel<ConversationThread>(
+                Builders<ConversationThread>.IndexKeys.Ascending(c => c.ThreadId),
+                new CreateIndexOptions { Unique = true }
+            )
+        );
+    }
+    
+    public async Task<ConversationThread> GetByThreadIdAsync(string threadId)
+    {
+        return await _conversations
+            .Find(c => c.ThreadId == threadId)
+            .FirstOrDefaultAsync();
+    }
+    
+    public async Task AddAsync(ConversationThread thread)
+    {
+        await _conversations.InsertOneAsync(thread);
+    }
+    
+    public async Task UpdateAsync(ConversationThread thread)
+    {
+        await _conversations.ReplaceOneAsync(
+            c => c.ThreadId == thread.ThreadId,
+            thread,
+            new ReplaceOptions { IsUpsert = true }
+        );
+    }
+}
+```
+
+**Update Service Registration:**
+```csharp
+// OLD: EF Core Cosmos
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseCosmos(
+        builder.Configuration["CosmosDb:AccountEndpoint"],
+        builder.Configuration["CosmosDb:AccountKey"],
+        builder.Configuration["CosmosDb:DatabaseName"]
+    ));
+
+// NEW: MongoDB.Driver
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("MongoDB");
+    var settings = MongoClientSettings.FromConnectionString(connectionString);
+    
+    // Optional: Configure connection pool
+    settings.MaxConnectionPoolSize = 100;
+    settings.MinConnectionPoolSize = 10;
+    
+    return new MongoClient(settings);
+});
+
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var databaseName = builder.Configuration["MongoDB:DatabaseName"];
+    return client.GetDatabase(databaseName);
+});
+
+builder.Services.AddScoped<ConversationRepository>();
+builder.Services.AddScoped<PatternRepository>();
+```
+
+**Update Configuration Files:**
+```json
+// appsettings.Development.json (OLD - Cosmos DB)
+{
+  "CosmosDb": {
+    "AccountEndpoint": "https://localhost:8081",
+    "AccountKey": "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==",
+    "DatabaseName": "HRAgent"
+  }
+}
+
+// appsettings.Development.json (NEW - MongoDB)
+{
+  "MongoDB": {
+    "ConnectionString": "mongodb://localhost:27017",  // Aspire-managed
+    "DatabaseName": "HRAgent-Dev"
+  }
+}
+
+// appsettings.Production.json (NEW - Azure DocumentDB)
+{
+  "MongoDB": {
+    "ConnectionString": "@Microsoft.KeyVault(SecretUri=https://hragent-kv.vault.azure.net/secrets/MongoDbConnectionString)",
+    "DatabaseName": "HRAgent-Prod"
+  }
+}
+```
+
+---
+
+**Phase 3: Query Migration (Week 2)**
+
+**Common Query Patterns:**
+
+| Cosmos DB SQL (EF Core) | MongoDB (MongoDB.Driver) |
+|------------------------|--------------------------|
+| `db.Conversations.Where(c => c.ThreadId == id)` | `collection.Find(c => c.ThreadId == id)` |
+| `db.Conversations.FirstOrDefaultAsync()` | `collection.Find(...).FirstOrDefaultAsync()` |
+| `db.Conversations.Add(entity)` | `collection.InsertOneAsync(entity)` |
+| `db.Conversations.Update(entity); db.SaveChanges()` | `collection.ReplaceOneAsync(filter, entity)` |
+| `db.Conversations.Where(c => c.UserId == id).ToListAsync()` | `collection.Find(c => c.UserId == id).ToListAsync()` |
+| Cross-partition queries (expensive) | Index-based queries (efficient) |
+
+**Example Migrations:**
+
+```csharp
+// OLD: EF Core LINQ
+var threads = await db.Conversations
+    .Where(c => c.UserId == userId && c.CreatedAt > DateTime.UtcNow.AddDays(-7))
+    .OrderByDescending(c => c.CreatedAt)
+    .Take(10)
+    .ToListAsync();
+
+// NEW: MongoDB LINQ (nearly identical syntax)
+var threads = await _conversations
+    .Find(c => c.UserId == userId && c.CreatedAt > DateTime.UtcNow.AddDays(-7))
+    .SortByDescending(c => c.CreatedAt)
+    .Limit(10)
+    .ToListAsync();
+
+// OR: MongoDB Fluent API (more explicit)
+var filter = Builders<ConversationThread>.Filter.And(
+    Builders<ConversationThread>.Filter.Eq(c => c.UserId, userId),
+    Builders<ConversationThread>.Filter.Gt(c => c.CreatedAt, DateTime.UtcNow.AddDays(-7))
+);
+
+var threads = await _conversations
+    .Find(filter)
+    .SortByDescending(c => c.CreatedAt)
+    .Limit(10)
+    .ToListAsync();
+```
+
+---
+
+**Phase 4: Data Migration (Week 3)**
+
+**Option 1: Azure Portal Migration Tool (Recommended for Cosmos DB → Azure DocumentDB)**
+
+1. **Configure Source (Cosmos DB for MongoDB):**
+   - Enable system-assigned Managed Identity on source Cosmos DB
+   - Enable Continuous Backup (required for online migration)
+
+2. **Configure Target (Azure DocumentDB):**
+   - Store credentials in Azure Key Vault
+   - Configure firewall rules to allow migration job IPs
+
+3. **Create Migration Job:**
+```bash
+# Via Azure Portal:
+# 1. Navigate to Azure Cosmos DB for MongoDB account
+# 2. Select "Migration" blade
+# 3. Choose "Online migration" for zero-downtime
+# 4. Select target Azure DocumentDB cluster
+# 5. Map source collections to target collections
+# 6. Start migration job
+```
+
+4. **Pre-Create Indexes on Target:**
+```bash
+# Migration doesn't transfer indexes automatically
+# Connect to Azure DocumentDB and create indexes:
+mongosh "mongodb+srv://<credentials>@<cluster>.mongocluster.cosmos.azure.com/"
+
+use HRAgent-Prod
+
+db.conversations.createIndex({ threadId: 1 }, { unique: true })
+db["user-patterns"].createIndex({ userId: 1 }, { unique: true })
+```
+
+5. **Monitor and Cutover:**
+   - Monitor migration progress in Azure Portal
+   - Validate data integrity (compare document counts, sample records)
+   - Perform cutover when source and target are synced
+   - Update application connection strings to point to Azure DocumentDB
+
+**Option 2: mongodump/mongorestore (For Existing MongoDB Data)**
+
+```bash
+# Export from MongoDB
+mongodump --uri="mongodb://localhost:27017" --db=HRAgent-Dev --out=./dump
+
+# Import to Azure DocumentDB
+mongorestore --uri="mongodb+srv://<credentials>@<cluster>.mongocluster.cosmos.azure.com/" \
+  --db=HRAgent-Prod \
+  --dir=./dump/HRAgent-Dev
+```
+
+---
+
+**Phase 5: Testing & Validation (Week 3-4)**
+
+**Update Integration Tests:**
+```csharp
+// OLD: EF Core In-Memory Database
+public class ConversationEndpointsTests : IAsyncLifetime
+{
+    private AppDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase("TestDb")
+            .Options;
+        return new AppDbContext(options);
+    }
+}
+
+// NEW: Testcontainers MongoDB (Real MongoDB in Docker)
+using Testcontainers.MongoDb;
+
+public class ConversationEndpointsTests : IAsyncLifetime
+{
+    private MongoDbContainer _mongoContainer;
+    private IMongoClient _mongoClient;
+    
+    public async Task InitializeAsync()
+    {
+        _mongoContainer = new MongoDbBuilder()
+            .WithImage("mongo:7.0")
+            .Build();
+        
+        await _mongoContainer.StartAsync();
+        
+        _mongoClient = new MongoClient(_mongoContainer.GetConnectionString());
+    }
+    
+    public async Task DisposeAsync()
+    {
+        await _mongoContainer.DisposeAsync();
+    }
+    
+    [Fact]
+    public async Task GetConversation_WithValidThreadId_ReturnsOk()
+    {
+        var database = _mongoClient.GetDatabase("TestDb");
+        var repository = new ConversationRepository(database);
+        
+        // Test with real MongoDB instance...
+    }
+}
+```
+
+**Validation Checklist:**
+- [ ] All CRUD operations work correctly (Create, Read, Update, Delete)
+- [ ] Indexes created and queries perform well (<10ms p95 for indexed queries)
+- [ ] Integration tests pass with Testcontainers MongoDB
+- [ ] Local development works with .NET Aspire orchestration
+- [ ] Production connection works with Azure DocumentDB via Key Vault
+- [ ] Data integrity validated (compare Cosmos DB vs. Azure DocumentDB document counts)
+- [ ] Application Insights shows MongoDB dependency tracking
+
+---
+
+**Phase 6: Production Deployment (Week 4)**
+
+1. **Deploy Updated Application:**
+```bash
+# Update container image with new MongoDB.Driver code
+az acr build --registry hragent --image hragent-api:v2 .
+
+# Deploy to staging slot first
+az containerapp revision copy \
+  --name hragent-api \
+  --resource-group hragent-rg \
+  --target-revision hragent-api--v2
+```
+
+2. **Update Configuration:**
+   - Ensure Key Vault references are configured in Container App settings
+   - Validate Managed Identity has access to Key Vault secrets
+   - Test staging deployment with Azure DocumentDB connection
+
+3. **Traffic Cutover:**
+```bash
+# Gradually shift traffic from old (Cosmos DB) to new (Azure DocumentDB)
+az containerapp ingress traffic set \
+  --name hragent-api \
+  --resource-group hragent-rg \
+  --revision-weight hragent-api--v1=20 hragent-api--v2=80
+
+# After validation, full cutover
+az containerapp ingress traffic set \
+  --name hragent-api \
+  --resource-group hragent-rg \
+  --revision-weight hragent-api--v2=100
+```
+
+4. **Monitor Post-Migration:**
+   - Application Insights: Check for errors, latency changes
+   - Azure DocumentDB Metrics: CPU/memory utilization, query performance
+   - Cost Management: Compare Azure DocumentDB costs vs. Cosmos DB
+
+#### Migration Risks & Mitigations
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| **Data loss during migration** | High | Use online migration mode, validate data integrity before cutover, maintain Cosmos DB backup until confirmed |
+| **Index performance degradation** | Medium | Pre-create all indexes on target, validate query performance in staging |
+| **Connection string misconfiguration** | High | Test in staging first, use Key Vault references, document rollback procedure |
+| **Application downtime** | Medium | Blue/green deployment with staging slots, gradual traffic shift |
+| **Cost increase** | Low | Monitor costs weekly, adjust autoscale settings, compare with Cosmos DB baseline |
+| **Local development issues** | Low | .NET Aspire manages MongoDB container lifecycle, well-documented setup |
+
+#### Rollback Plan
+
+If critical issues occur post-migration:
+
+1. **Immediate Rollback (< 5 minutes):**
+```bash
+# Shift traffic back to old revision (Cosmos DB)
+az containerapp ingress traffic set \
+  --name hragent-api \
+  --resource-group hragent-rg \
+  --revision-weight hragent-api--v1=100 hragent-api--v2=0
+```
+
+2. **Data Rollback (if data corruption):**
+   - Restore from Cosmos DB backup (continuous backup enabled)
+   - Replay audit logs to recover missing transactions
+
+3. **Full Rollback (if fundamental issues):**
+   - Revert code to previous commit
+   - Restore Cosmos DB connection strings
+   - Keep Azure DocumentDB cluster for future retry
+
+#### Post-Migration Optimization
+
+**Week 5+: Performance Tuning**
+
+1. **Index Optimization:**
+```bash
+# Analyze slow queries
+db.setProfilingLevel(2)  # Profile all queries
+db.system.profile.find().sort({millis:-1}).limit(10)
+
+# Create compound indexes for common queries
+db.conversations.createIndex({ userId: 1, createdAt: -1 })
+db["user-patterns"].createIndex({ userId: 1, timesheetDayOfWeek: 1 })
+```
+
+2. **Connection Pool Tuning:**
+```csharp
+var settings = MongoClientSettings.FromConnectionString(connectionString);
+settings.MaxConnectionPoolSize = 200;  // Increase for high concurrency
+settings.MinConnectionPoolSize = 20;   // Keep warm connections
+settings.MaxConnectionIdleTime = TimeSpan.FromMinutes(5);
+```
+
+3. **Autoscale Adjustment:**
+   - Monitor Azure DocumentDB CPU/memory metrics
+   - Adjust M200-Autoscale thresholds based on actual load
+   - Consider downsizing to M100-Autoscale if consistently under-utilized
+
+
 
 ## Implementation Patterns & Consistency Rules
 
@@ -728,33 +1411,39 @@ UseConversation.ts               // Hook should be camelCase
 
 ---
 
-#### Cosmos DB Naming Conventions
+#### MongoDB Document Naming Conventions
 
-**Pattern:** camelCase for all JSON properties
+**Pattern:** camelCase for all JSON/BSON properties
 
 **Rules:**
-- Container names: `conversations`, `user-patterns` (kebab-case)
-- Partition keys: `threadId`, `userId` (camelCase)
-- JSON properties: `createdAt`, `messageText`, `tokenCount` (camelCase)
-- C# entity properties: PascalCase (EF Core auto-maps to camelCase JSON)
+- Collection names: `conversations`, `user-patterns` (kebab-case)
+- Index keys: `threadId`, `userId` (camelCase)
+- BSON properties: `createdAt`, `messageText`, `tokenCount` (camelCase)
+- C# entity properties: PascalCase (MongoDB.Driver auto-maps to camelCase BSON)
 - No underscores (`thread_id` ❌)
+- Use `[BsonElement("propertyName")]` attribute for custom mapping if needed
 
 **Examples:**
 ```csharp
-// ✅ CORRECT - C# Entity
+// ✅ CORRECT - C# Entity with MongoDB attributes
 public class ConversationThread 
 {
-    public string ThreadId { get; set; }        // Maps to "threadId" in JSON
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; }              // MongoDB _id field
+    
+    public string ThreadId { get; set; }        // Maps to "threadId" in BSON
     public string UserId { get; set; }          // Maps to "userId"
     public DateTime CreatedAt { get; set; }     // Maps to "createdAt"
     public List<Message> Messages { get; set; } // Maps to "messages"
 }
 
-// Cosmos DB JSON (automatic mapping):
+// MongoDB BSON (automatic mapping):
 {
+  "_id": ObjectId("507f1f77bcf86cd799439011"),
   "threadId": "thread-123",
   "userId": "user-456",
-  "createdAt": "2025-12-25T10:00:00Z",
+  "createdAt": ISODate("2025-12-25T10:00:00Z"),
   "messages": []
 }
 
@@ -763,15 +1452,26 @@ public string thread_id { get; set; }  // Don't use snake_case in C#
 public string ThreadID { get; set; }   // Use ThreadId (not ID)
 ```
 
-**Container Configuration:**
+**Collection and Index Configuration:**
 ```csharp
-modelBuilder.Entity<ConversationThread>()
-    .ToContainer("conversations")
-    .HasPartitionKey(e => e.ThreadId);
+// Create collections and indexes at startup
+var database = mongoClient.GetDatabase("HRAgent");
 
-modelBuilder.Entity<UserPattern>()
-    .ToContainer("user-patterns")
-    .HasPartitionKey(e => e.UserId);
+var conversationsCollection = database.GetCollection<ConversationThread>("conversations");
+await conversationsCollection.Indexes.CreateOneAsync(
+    new CreateIndexModel<ConversationThread>(
+        Builders<ConversationThread>.IndexKeys.Ascending(c => c.ThreadId),
+        new CreateIndexOptions { Unique = true }
+    )
+);
+
+var patternsCollection = database.GetCollection<UserPattern>("user-patterns");
+await patternsCollection.Indexes.CreateOneAsync(
+    new CreateIndexModel<UserPattern>(
+        Builders<UserPattern>.IndexKeys.Ascending(p => p.UserId),
+        new CreateIndexOptions { Unique = true }
+    )
+);
 ```
 
 ---
@@ -1777,14 +2477,15 @@ HRAgent/
 │   │   └── AuditLogger.cs                   # Blob Storage append blob logging
 │   │
 │   ├── Data/                                # Data access layer
-│   │   ├── AppDbContext.cs                  # EF Core Cosmos DB context
-│   │   ├── Entities/                        # C# entity classes
+│   │   ├── Entities/                        # C# entity classes with MongoDB attributes
 │   │   │   ├── ConversationThread.cs
 │   │   │   ├── Message.cs
 │   │   │   ├── UserPattern.cs
 │   │   │   └── ApprovalRequest.cs
-│   │   └── Repositories/                    # Repository pattern (if needed)
-│   │       └── ConversationRepository.cs
+│   │   └── Repositories/                    # MongoDB repository pattern
+│   │       ├── ConversationRepository.cs
+│   │       ├── PatternRepository.cs
+│   │       └── IRepository.cs               # Generic repository interface
 │   │
 │   ├── Models/                              # Request/response DTOs
 │   │   ├── Requests/
@@ -1800,7 +2501,7 @@ HRAgent/
 │   ├── Configuration/                       # Configuration classes
 │   │   ├── AzureOpenAIConfig.cs
 │   │   ├── FactorialConfig.cs
-│   │   ├── CosmosDbConfig.cs
+│   │   ├── MongoDbConfig.cs                # MongoDB connection configuration
 │   │   └── PollyPolicies.cs                # Retry/circuit breaker policies
 │   │
 │   └── Extensions/                          # Extension methods
@@ -2006,10 +2707,11 @@ Health & Diagnostics:
 - User identity extracted from token claims: `ClaimsPrincipal.FindFirstValue("sub")` → userId
 
 **Backend Internal Boundaries:**
-- `Endpoints/` → `Services/` → `Data/` (layered architecture)
+- `Endpoints/` → `Services/` → `Repositories/` → MongoDB (layered architecture)
 - Services communicate via dependency injection (no direct service-to-service calls)
 - `FactorialClient` abstracts all Factorial HR API interactions (Polly resilience)
 - `AuditLogger` centralized for all write operations (immutable append blobs)
+- Repository pattern abstracts MongoDB operations (IMongoCollection<T> wrapped in domain repositories)
 
 #### Component Boundaries
 
@@ -2080,7 +2782,7 @@ KnowledgeBaseService (Singleton)
   └─ Methods: SearchPolicies(), GetPolicyDocument()
 
 PatternService (Scoped)
-  ├─ Data source: Cosmos DB user-patterns container
+  ├─ Data source: MongoDB user-patterns collection (via PatternRepository)
   ├─ Analysis: Detects timesheet submission patterns, approval thresholds
   └─ Methods: GetPatterns(), UpdatePattern(), AnalyzeHistory()
 
@@ -2093,20 +2795,22 @@ AuditLogger (Singleton)
 
 #### Data Boundaries
 
-**Cosmos DB Containers:**
+**MongoDB Collections (Local + Azure DocumentDB):**
 
 ```
-conversations (partition key: threadId)
+conversations (indexed on: threadId)
   ├─ Documents: ConversationThread (with nested Message[])
-  ├─ Access pattern: Single-partition read by threadId
-  ├─ Queries: EF Core LINQ (db.Conversations.Where(...))
-  └─ Consistency: Strong consistency (default)
+  ├─ Access pattern: Index-based lookup by threadId
+  ├─ Queries: MongoDB.Driver LINQ or Find() methods
+  ├─ Consistency: Strong consistency (MongoDB default)
+  └─ Example: collection.Find(c => c.ThreadId == threadId).FirstOrDefaultAsync()
 
-user-patterns (partition key: userId)
+user-patterns (indexed on: userId)
   ├─ Documents: UserPattern (timesheet patterns, approval thresholds, preferences)
-  ├─ Access pattern: Single-partition read by userId
-  ├─ Queries: EF Core LINQ (db.UserPatterns.FirstOrDefaultAsync(p => p.UserId == userId))
-  └─ Updates: Replace entire document (no partial updates in MVP)
+  ├─ Access pattern: Index-based lookup by userId
+  ├─ Queries: MongoDB.Driver LINQ or Find() methods
+  ├─ Updates: ReplaceOne() for full document or UpdateOne() for partial updates
+  └─ Example: collection.Find(p => p.UserId == userId).FirstOrDefaultAsync()
 ```
 
 **Azure Blob Storage:**
@@ -2293,7 +2997,8 @@ Backend:
   - Program.cs: builder.Services.AddApplicationInsightsTelemetry()
   - Configuration: appsettings.json → ApplicationInsights section
   - Custom metrics: TelemetryClient.TrackMetric() for LLM token usage, intent accuracy
-  - Distributed tracing: Automatic across Container Apps, Cosmos DB, Blob Storage
+  - Distributed tracing: Automatic across Container Apps, Azure DocumentDB (MongoDB), Blob Storage
+  - MongoDB Operations: Application Insights tracks MongoDB operations as dependencies
 
 Frontend:
   - Application Insights JavaScript SDK (future consideration)
@@ -2305,11 +3010,12 @@ Frontend:
 ```
 Backend:
   - Services/PatternService.cs: Analyze user behavior patterns
-  - Data/Entities/UserPattern.cs: Store patterns in Cosmos DB user-patterns container
+  - Data/Entities/UserPattern.cs: Store patterns in MongoDB user-patterns collection
+  - Data/Repositories/PatternRepository.cs: MongoDB repository for pattern operations
   - Services/AgentService.cs: Use patterns to personalize agent responses
 
 Storage:
-  - Cosmos DB: user-patterns container (partition key: userId)
+  - MongoDB: user-patterns collection (indexed on: userId)
   - Pattern types: Timesheet submission day/time, approval thresholds, reminder preferences
 ```
 
@@ -2376,30 +3082,58 @@ private static async Task<IResult> GetPTOBalance(
 }
 ```
 
-**Backend → Cosmos DB (EF Core):**
+**Backend → MongoDB (MongoDB.Driver):**
 
 ```csharp
-// Data/AppDbContext.cs
-public class AppDbContext : DbContext
+// Data/Repositories/ConversationRepository.cs
+public class ConversationRepository
 {
-    public DbSet<ConversationThread> Conversations { get; set; }
-    public DbSet<UserPattern> UserPatterns { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    private readonly IMongoCollection<ConversationThread> _conversations;
+    
+    public ConversationRepository(IMongoDatabase database)
     {
-        modelBuilder.Entity<ConversationThread>()
-            .ToContainer("conversations")
-            .HasPartitionKey(e => e.ThreadId);
-
-        modelBuilder.Entity<UserPattern>()
-            .ToContainer("user-patterns")
-            .HasPartitionKey(e => e.UserId);
+        _conversations = database.GetCollection<ConversationThread>("conversations");
+    }
+    
+    public async Task<ConversationThread> GetByThreadIdAsync(string threadId)
+    {
+        return await _conversations
+            .Find(c => c.ThreadId == threadId)
+            .FirstOrDefaultAsync();
+    }
+    
+    public async Task AddAsync(ConversationThread thread)
+    {
+        await _conversations.InsertOneAsync(thread);
+    }
+    
+    public async Task UpdateAsync(ConversationThread thread)
+    {
+        await _conversations.ReplaceOneAsync(
+            c => c.ThreadId == thread.ThreadId,
+            thread
+        );
     }
 }
 
+// Program.cs - Service registration
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("MongoDB");
+    return new MongoClient(connectionString);
+});
+
+builder.Services.AddScoped<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var databaseName = builder.Configuration["MongoDB:DatabaseName"];
+    return client.GetDatabase(databaseName);
+});
+
+builder.Services.AddScoped<ConversationRepository>();
+
 // Usage in endpoint
-var thread = await db.Conversations
-    .FirstOrDefaultAsync(c => c.ThreadId == threadId, ct);
+var thread = await conversationRepository.GetByThreadIdAsync(threadId);
 ```
 
 #### External Integrations
@@ -2501,8 +3235,8 @@ export async function acquireToken(): Promise<string> {
 4. Backend: AuditLogger logs event to Blob Storage
    └─ Append to audit/2025/12/25/thread-123.jsonl
 
-5. Backend: Saves conversation to Cosmos DB
-   └─ db.Conversations.Update(thread); await db.SaveChangesAsync();
+5. Backend: Saves conversation to MongoDB
+   └─ await conversationRepository.UpdateAsync(thread);
 
 6. Backend: Streams response via SSE to frontend
    └─ SSE event: MESSAGE { text: "You have 11 days...", role: 'assistant' }
@@ -2513,6 +3247,23 @@ export async function acquireToken(): Promise<string> {
 8. Frontend: ChatInterface re-renders with new message
    └─ MessageBubble displays assistant response
 ```
+
+**Backend → MongoDB Data Flow:**
+```
+Endpoint
+  ↓
+Repository (ConversationRepository)
+  ↓
+MongoDB.Driver (IMongoCollection<T>)
+  ↓
+MongoDB Connection (IMongoClient - Singleton)
+  ↓
+Local MongoDB (Docker via Aspire) OR Azure DocumentDB (Production)
+```
+
+**Environment-Based Connection:**
+- **Development**: `mongodb://localhost:27017` (.NET Aspire manages container)
+- **Production**: `mongodb+srv://<credentials>@<cluster>.mongocluster.cosmos.azure.com/...` (Azure Key Vault)
 
 ### File Organization Patterns
 
@@ -2526,12 +3277,12 @@ HRAgent.Api/
 │   ├─ CORS origins
 │   └─ Feature flags
 ├── appsettings.Development.json         # Development overrides
-│   ├─ Local Cosmos DB emulator connection
+│   ├─ Local MongoDB connection (Aspire-managed)
 │   ├─ Azurite blob storage emulator
 │   └─ Verbose logging
 ├── appsettings.Production.json          # Production settings (not in repo)
 │   ├─ Azure Key Vault reference for secrets
-│   ├─ Production Cosmos DB connection
+│   ├─ Azure DocumentDB connection (from Key Vault)
 │   └─ Production Application Insights key
 └── HRAgent.Api.csproj                   # NuGet package references
 ```
@@ -2566,7 +3317,7 @@ HRAgent.AppHost/
 **Backend Code Organization Principles:**
 - **Endpoints/**: All HTTP route handlers (extension methods returning `IEndpointRouteBuilder`)
 - **Services/**: Business logic and external service integrations (singleton/scoped lifetime)
-- **Data/**: Database context, entities, repositories (EF Core)
+- **Data/**: MongoDB repositories, entities with BSON attributes
 - **Models/**: DTOs for API requests/responses (separate from entities)
 - **Configuration/**: Strongly-typed configuration classes and policies
 - **Extensions/**: Helper methods for DI registration and middleware setup
@@ -2587,13 +3338,13 @@ HRAgent.Api.Tests/                       # Unit tests (fast, no external depende
 ├── Endpoints/                           # Test each endpoint group
 │   └── *EndpointsTests.cs               # Arrange-Act-Assert pattern
 ├── Services/                            # Test business logic with mocks
-│   └── *ServiceTests.cs                 # Mock HttpClient, DbContext
+│   └── *ServiceTests.cs                 # Mock HttpClient, IMongoDatabase
 └── TestHelpers/                         # Shared test utilities
-    └── InMemoryDbContextFactory.cs      # EF Core in-memory database
+    └── MockMongoCollection.cs           # Mock IMongoCollection<T> for testing
 
 HRAgent.Integration.Tests/               # Integration tests (slower, real services)
 ├── *FlowTests.cs                        # End-to-end scenarios
-└── appsettings.Test.json                # Test environment configuration
+└── appsettings.Test.json                # Test environment configuration (Testcontainers MongoDB)
 ```
 
 **Frontend Test Structure:**
@@ -3115,7 +3866,8 @@ dotnet add package Microsoft.Agents.AI --prerelease
 dotnet add package Microsoft.Agents.AI.Hosting.AGUI.AspNetCore --prerelease
 dotnet add package Azure.AI.OpenAI
 dotnet add package Azure.Identity
-dotnet add package Microsoft.EntityFrameworkCore.Cosmos
+dotnet add package MongoDB.Driver  # Unified driver for local MongoDB and Azure DocumentDB
+dotnet add package Aspire.MongoDB.Driver  # .NET Aspire integration
 dotnet add package Microsoft.Identity.Web
 dotnet add package Microsoft.Extensions.Http.Polly
 dotnet add package Azure.Storage.Blobs
@@ -3205,7 +3957,8 @@ dotnet new webapi -n HRAgent.Api -f net10.0 -o HRAgent/HRAgent.Api
 cd HRAgent/HRAgent.Api
 dotnet add package Microsoft.Agents.AI --prerelease
 dotnet add package Microsoft.Agents.AI.Hosting.AGUI.AspNetCore --prerelease
-dotnet add package Microsoft.EntityFrameworkCore.Cosmos --version 10.0.0
+dotnet add package MongoDB.Driver --version 2.29.0  # Unified for local MongoDB + Azure DocumentDB
+dotnet add package Aspire.MongoDB.Driver  # .NET Aspire orchestration
 dotnet add package Microsoft.AspNetCore.Authentication.JwtBearer --version 10.0.0
 dotnet add package Microsoft.Identity.Web --version 3.3.1
 dotnet add package Azure.Storage.Blobs --version 12.25.0

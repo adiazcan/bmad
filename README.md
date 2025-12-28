@@ -409,6 +409,184 @@ npm run build
 
 The backend implements immutable audit logging to Azure Blob Storage for legal compliance and transparency. All AI agent decisions and user actions are logged with complete context.
 
+## MongoDB Database Configuration
+
+The backend uses MongoDB for conversation state persistence with unified driver support for both local development and Azure DocumentDB production environments.
+
+### Database Architecture
+
+**Selected Option: Azure DocumentDB (Production) + MongoDB (Local)**
+
+**Rationale:**
+- **99.02% MongoDB Query Language compatibility** with Azure DocumentDB
+- **Unified driver** - single `MongoDB.Driver` NuGet package for all environments
+- **Local development excellence** - MongoDB Community Edition in Docker with feature parity
+- **Production scaling** - Azure DocumentDB M200-Autoscale with instant capacity adjustment
+- **Rich query language** - aggregation pipelines, LINQ integration, flexible document model
+
+**Collections:**
+- `conversations`: Conversation threads with messages (indexed by `threadId`)
+- `user-patterns`: User behavior patterns for personalization (indexed by `userId`)
+
+### Local Development Setup
+
+**Aspire automatically manages MongoDB container** - no manual setup required:
+
+```bash
+# Start AppHost (includes MongoDB 7.0 container)
+cd HRAgent.AppHost
+dotnet run --launch-profile http
+
+# Verify MongoDB in Aspire Dashboard
+# Open http://localhost:15000 → Resources → "mongodb" should show Running
+```
+
+**Configuration:**
+- Dev connection string in `appsettings.Development.json`: `mongodb://localhost:27017`
+- Database name: `hragent-dev`
+- Health check endpoint: `/ready` verifies MongoDB connectivity
+
+### Test Endpoints (Development Only)
+
+**Test MongoDB connectivity:**
+```bash
+curl http://localhost:5000/test-mongodb
+# Response: { "success": true, "message": "MongoDB connected successfully", "threadId": "...", "messageCount": 1 }
+```
+
+**Query conversation by threadId:**
+```bash
+curl http://localhost:5000/conversations/{threadId}
+# Response: { "id": "...", "threadId": "...", "userId": "...", "messages": [...] }
+```
+
+### Data Models
+
+**ConversationThread:**
+```csharp
+{
+  "id": "ObjectId",
+  "threadId": "conv-abc123",
+  "userId": "user@example.com",
+  "createdAt": "2025-12-28T12:34:56.789Z",
+  "updatedAt": "2025-12-28T13:00:00.000Z",
+  "messages": [
+    {
+      "id": "msg-guid",
+      "role": "user",
+      "text": "Hello HRAgent",
+      "createdAt": "2025-12-28T12:34:56.789Z",
+      "tokenCount": 4
+    }
+  ]
+}
+```
+
+**UserPattern:**
+```csharp
+{
+  "id": "ObjectId",
+  "userId": "user@example.com",
+  "patternType": "timesheet",
+  "patternData": "{\"frequency\":\"weekly\",\"dayOfWeek\":5}",
+  "updatedAt": "2025-12-28T12:34:56.789Z"
+}
+```
+
+### Repository Pattern
+
+The backend implements repository pattern for data access:
+
+**ConversationRepository:**
+- `GetByThreadIdAsync(threadId)` - Retrieves conversation by threadId (uses index)
+- `GetByUserIdAsync(userId)` - Retrieves all user conversations
+- `AddAsync(thread)` - Inserts new conversation
+- `UpdateAsync(thread)` - Upserts conversation (update or insert)
+- `DeleteAsync(threadId)` - Deletes conversation
+
+**PatternRepository:**
+- `GetByUserIdAsync(userId)` - Retrieves user pattern (uses index)
+- `UpsertAsync(pattern)` - Updates or inserts user pattern
+
+### Integration Testing
+
+MongoDB integration tests use **Testcontainers.MongoDb** for real MongoDB instances:
+
+```bash
+cd HRAgent.Api.Tests
+dotnet test --filter "FullyQualifiedName~ConversationRepositoryTests|FullyQualifiedName~PatternRepositoryTests"
+# 10 tests: CRUD operations, indexing, concurrency
+```
+
+**Tests verify:**
+- ✅ CRUD operations (Create, Read, Update, Delete)
+- ✅ Indexed queries (threadId, userId)
+- ✅ Upsert behavior (update or insert)
+- ✅ Null handling for non-existent documents
+- ✅ Timestamp updates
+
+### MongoDB Compass (Optional)
+
+For visual inspection of local MongoDB data:
+
+1. Install [MongoDB Compass](https://www.mongodb.com/products/compass)
+2. Connect to: `mongodb://localhost:27017`
+3. Select database: `hragent-dev`
+4. Browse collections: `conversations`, `user-patterns`
+
+### Production Configuration (Azure DocumentDB)
+
+**Before deployment:**
+
+1. **Create Azure DocumentDB cluster** (vCore-based, M200-Autoscale)
+2. **Enable MongoDB API** with version 7.0+
+3. **Configure firewall rules** for Azure Container Apps outbound IPs
+4. **Store connection string in Azure Key Vault** as `MongoDbConnectionString`
+5. **Update appsettings.json** with Key Vault reference (already templated)
+6. **Enable managed identity** for Key Vault access
+
+Production configuration template is already in place in `appsettings.json`:
+```json
+{
+  "MongoDB": {
+    "ConnectionString": "@Microsoft.KeyVault(SecretUri=https://{vault}.vault.azure.net/secrets/MongoDbConnectionString)",
+    "DatabaseName": "hragent"
+  }
+}
+```
+
+**Production connection string format:**
+```
+mongodb+srv://<username>:<password>@<cluster>.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256
+```
+
+### Health Checks
+
+The backend includes MongoDB health checks:
+
+```bash
+# Check all health checks
+curl http://localhost:5000/health
+# Response: Healthy (includes mongodb, storage, and other checks)
+
+# Check readiness (mongodb + storage only)
+curl http://localhost:5000/ready
+# Response: Healthy (verifies MongoDB connectivity)
+```
+
+### Indexes
+
+Indexes are automatically created on application startup:
+
+- **conversations collection**: `threadId` (ascending) for fast conversation lookups
+- **user-patterns collection**: `userId` (ascending) for fast pattern retrieval
+
+Index creation is idempotent - safe to run multiple times.
+
+## Azure Blob Storage Audit Logging
+
+The backend implements immutable audit logging to Azure Blob Storage for legal compliance and transparency. All AI agent decisions and user actions are logged with complete context.
+
 ### Audit Logging Service
 
 **Service:** `HRAgent.Api/Services/AuditLogger.cs`
@@ -557,9 +735,10 @@ dotnet test --filter "FullyQualifiedName~AuditLoggerTests"
 - ✅ **Story 1.1**: Initialize backend and frontend projects (COMPLETE)
 - ✅ **Story 1.2**: Configure .NET Aspire orchestration (COMPLETE)
 - ✅ **Story 1.3**: Set up Azure AD authentication - backend (COMPLETE)
+- ✅ **Story 1.5**: Configure MongoDB/Azure DocumentDB connection (COMPLETE)
 - ✅ **Story 1.6**: Configure Blob Storage for audit logs (COMPLETE)
 - **Story 1.4**: Set up Azure AD authentication - frontend (MSAL.js)
-- **Story 1.5**: Configure Cosmos DB serverless connection
+- **Story 1.7**: Configure Factorial HR API client with Polly
 - **Story 2.x**: Implement conversational interface with Microsoft Agent Framework
 
 ## Contributing

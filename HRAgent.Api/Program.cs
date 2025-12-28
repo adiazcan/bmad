@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Identity.Web;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 using HRAgent.Api.Data;
 using HRAgent.Api.Services;
 using System.Text.Json;
@@ -14,31 +14,35 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // Add authorization services
 builder.Services.AddAuthorization();
 
-// Add DbContext with Cosmos DB provider
+// Add MongoDB client as singleton (connection pooling managed internally)
 // Connection string injected by Aspire via WithReference(database) or manual appsettings.json
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     // Aspire injects as "ConnectionStrings:hragent" when using WithReference(database)
-    // Fallback to manual "CosmosDb:ConnectionString" for standalone runs
+    // Fallback to manual "MongoDB:ConnectionString" for standalone runs
     var connectionString = builder.Configuration.GetConnectionString("hragent")
-        ?? builder.Configuration["CosmosDb:ConnectionString"]
-        ?? throw new InvalidOperationException("Cosmos DB connection string not configured");
+        ?? builder.Configuration["MongoDB:ConnectionString"]
+        ?? throw new InvalidOperationException("MongoDB connection string not configured");
     
-    var databaseName = builder.Configuration["CosmosDb:DatabaseName"]
-        ?? "hragent";
+    Console.WriteLine($"🔗 MongoDB Connection String: {connectionString}");
+
+    var settings = MongoClientSettings.FromConnectionString(connectionString);
     
-    options.UseCosmos(
-        connectionString: connectionString,
-        databaseName: databaseName,
-        cosmosOptionsAction: cosmosOptions =>
-        {
-            // Enable automatic container creation
-            cosmosOptions.ConnectionMode(Microsoft.Azure.Cosmos.ConnectionMode.Gateway);
-            
-            // Request timeout (30 seconds default)
-            cosmosOptions.RequestTimeout(TimeSpan.FromSeconds(30));
-        });
+    // Optional: Configure connection pool
+    settings.MaxConnectionPoolSize = 100;
+    settings.MinConnectionPoolSize = 10;
+    settings.MaxConnectionIdleTime = TimeSpan.FromMinutes(2);
+    settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
+    
+    return new MongoClient(settings);
 });
+
+// Add MongoDbService as scoped (per request)
+builder.Services.AddScoped<MongoDbService>();
+
+// Register MongoDB repositories as scoped services
+builder.Services.AddScoped<ConversationRepository>();
+builder.Services.AddScoped<PatternRepository>();
 
 // Configure CORS for frontend
 builder.Services.AddCors(options =>
@@ -63,16 +67,12 @@ builder.Services.AddSingleton<AuditLogger>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-// Add health checks for Cosmos DB and Blob Storage with connectivity verification
+// Add health checks for MongoDB and Blob Storage with connectivity verification
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>(
-        name: "cosmos-db",
-        tags: new[] { "db", "cosmos" },
-        customTestQuery: async (db, cancellationToken) =>
-        {
-            // Verify actual Cosmos DB connectivity
-            return await db.Database.CanConnectAsync(cancellationToken);
-        })
+    .AddMongoDb(
+        sp => sp.GetRequiredService<IMongoClient>(),
+        name: "mongodb",
+        tags: new[] { "db", "mongodb" })
     .AddAzureBlobStorage(
         builder.Configuration.GetConnectionString("blobs") 
             ?? builder.Configuration["BlobStorage:ConnectionString"]!,
@@ -81,19 +81,32 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Ensure database and containers are created
+// Ensure database and collections are created with indexes
 using (var scope = app.Services.CreateScope())
 {
     try
     {
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await dbContext.Database.EnsureCreatedAsync(); // ✅ Creates DB + containers if missing
-        Console.WriteLine("✅ Cosmos DB database and containers ensured");
+        var mongoService = scope.ServiceProvider.GetRequiredService<MongoDbService>();
+        var database = mongoService.Database;
+        
+        // Create conversations collection with threadId index
+        var conversationsCollection = database.GetCollection<ConversationThread>("conversations");
+        var conversationsIndexKeys = Builders<ConversationThread>.IndexKeys.Ascending(c => c.ThreadId);
+        var conversationsIndexModel = new CreateIndexModel<ConversationThread>(conversationsIndexKeys);
+        await conversationsCollection.Indexes.CreateOneAsync(conversationsIndexModel);
+        
+        // Create user-patterns collection with userId index
+        var patternsCollection = database.GetCollection<UserPattern>("user-patterns");
+        var patternsIndexKeys = Builders<UserPattern>.IndexKeys.Ascending(p => p.UserId);
+        var patternsIndexModel = new CreateIndexModel<UserPattern>(patternsIndexKeys);
+        await patternsCollection.Indexes.CreateOneAsync(patternsIndexModel);
+        
+        Console.WriteLine("✅ MongoDB database and collections ensured with indexes");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"❌ Failed to connect to Cosmos DB: {ex.Message}");
-        Console.WriteLine("   Ensure Cosmos DB emulator is running or connection string is correct");
+        Console.WriteLine($"❌ Failed to connect to MongoDB: {ex.Message}");
+        Console.WriteLine("   Ensure MongoDB container is running or connection string is correct");
         throw;
     }
 }
@@ -142,13 +155,15 @@ app.MapGet("/secure", () => new { message = "Authenticated!", timestamp = DateTi
     .RequireAuthorization()
     .WithName("GetSecure");
 
-// Test endpoint to verify Cosmos DB connectivity (dev only)
+// Test endpoint to verify MongoDB connectivity (dev only)
 if (app.Environment.IsDevelopment())
 {
-    app.MapGet("/test-cosmos", async (AppDbContext db) =>
+    app.MapGet("/test-mongodb", async (MongoDbService mongoService) =>
 {
     try
     {
+        var collection = mongoService.Database.GetCollection<ConversationThread>("conversations");
+        
         // Create a test conversation thread
         var thread = new ConversationThread
         {
@@ -165,12 +180,11 @@ if (app.Environment.IsDevelopment())
             }
         };
         
-        db.Conversations.Add(thread);
-        await db.SaveChangesAsync();
+        await collection.InsertOneAsync(thread);
         
-        // Retrieve the thread (using partition key)
-        var retrieved = await db.Conversations
-            .Where(c => c.ThreadId == thread.ThreadId) // ✅ Filters by partition key
+        // Retrieve the thread using threadId index
+        var retrieved = await collection
+            .Find(c => c.ThreadId == thread.ThreadId)
             .FirstOrDefaultAsync();
         
         if (retrieved != null)
@@ -178,7 +192,7 @@ if (app.Environment.IsDevelopment())
             return Results.Ok(new 
             { 
                 success = true, 
-                message = "Cosmos DB connected successfully",
+                message = "MongoDB connected successfully",
                 threadId = retrieved.ThreadId,
                 messageCount = retrieved.Messages.Count
             });
@@ -188,10 +202,10 @@ if (app.Environment.IsDevelopment())
     }
     catch (Exception ex)
     {
-        return Results.Problem($"Cosmos DB error: {ex.Message}");
+        return Results.Problem($"MongoDB error: {ex.Message}");
     }
 })
-.WithName("TestCosmos");
+.WithName("TestMongoDB");
 
     app.MapPost("/test-audit", async (AuditLogger auditLogger) =>
     {
@@ -241,11 +255,13 @@ if (app.Environment.IsDevelopment())
     .WithName("QueryAuditLogs");
 }
 
-// Query conversation by threadId (demonstrates partition key usage)
-app.MapGet("/conversations/{threadId}", async (string threadId, AppDbContext db) =>
+// Query conversation by threadId (demonstrates indexed query)
+app.MapGet("/conversations/{threadId}", async (string threadId, MongoDbService mongoService) =>
 {
-    var thread = await db.Conversations
-        .Where(c => c.ThreadId == threadId) // ✅ Partition key filter
+    var collection = mongoService.Database.GetCollection<ConversationThread>("conversations");
+    
+    var thread = await collection
+        .Find(c => c.ThreadId == threadId) // ✅ Uses threadId index
         .FirstOrDefaultAsync();
     
     if (thread == null)
