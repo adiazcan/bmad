@@ -405,13 +405,161 @@ npm run build
 4. **Test**: Run tests before committing
 5. **Build**: Run production builds before committing
 
+## Azure Blob Storage Audit Logging
+
+The backend implements immutable audit logging to Azure Blob Storage for legal compliance and transparency. All AI agent decisions and user actions are logged with complete context.
+
+### Audit Logging Service
+
+**Service:** `HRAgent.Api/Services/AuditLogger.cs`
+
+**Features:**
+- ✅ Thread-safe concurrent writes using `SemaphoreSlim`
+- ✅ Retry logic with exponential backoff (3 attempts, doubling delay)
+- ✅ JSON Lines format for append-only immutable logs
+- ✅ Automatic blob path generation: `audit/{year}/{month}/{day}/{threadId}.jsonl`
+- ✅ Complete audit entry capture: timestamp (UTC), userId, eventType, data, reasoning, threadId, correlationId, version
+
+### Local Development Setup
+
+**Aspire automatically manages Azurite emulator** - no manual setup required:
+
+```bash
+# Start AppHost (includes Azurite)
+cd HRAgent.AppHost
+dotnet run --launch-profile http
+
+# Verify storage in Aspire Dashboard
+# Open http://localhost:15000 → Resources → "storage" should show Running
+```
+
+**Configuration:**
+- Dev connection string in `appsettings.Development.json`: `UseDevelopmentStorage=true`
+- Container name: `audit-logs-dev`
+- Health check endpoint: `/ready` verifies Blob Storage connectivity
+
+### Test Endpoints (Development Only)
+
+**Write test audit log:**
+```bash
+curl -X POST http://localhost:5000/test-audit
+# Response: { "success": true, "message": "Audit log written successfully..." }
+```
+
+**Query audit logs by threadId:**
+```bash
+curl http://localhost:5000/test-audit/{threadId}
+# Response: { "success": true, "threadId": "...", "logCount": 1, "logs": [...] }
+```
+
+### Integration Testing
+
+A comprehensive integration test script is available:
+
+```bash
+# Make sure AppHost is running first
+cd HRAgent.AppHost
+dotnet run --launch-profile http
+
+# In another terminal:
+cd /home/adiaz/github/bmad
+bash test-audit-integration.sh
+```
+
+**Tests performed:**
+- ✅ Health check endpoint returns Healthy
+- ✅ Audit log write succeeds
+- ✅ Audit query returns logs
+- ✅ Thread safety with 10 concurrent writes
+
+### Azure Storage Explorer (Optional)
+
+For visual inspection of audit logs:
+
+1. Install [Azure Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/)
+2. Connect to local emulator: **Emulator - Default Ports (Key)**
+3. Navigate to: **Blob Containers** → **audit-logs-dev**
+4. Download `.jsonl` files to view entries
+
+### Production Configuration
+
+**Before deployment:**
+
+1. **Create Azure Storage Account** (StorageV2, LRS, Cool tier)
+2. **Configure 7-year immutability policy** on `audit-logs` container
+3. **Store connection string in Azure Key Vault** as `BlobStorageConnectionString`
+4. **Update appsettings.json** with Key Vault reference (already templated)
+5. **Enable managed identity** for Key Vault access
+
+Production configuration template is already in place in `appsettings.json`:
+```json
+{
+  "BlobStorage": {
+    "ConnectionString": "@Microsoft.KeyVault(SecretUri=https://{vault}.vault.azure.net/secrets/BlobStorageConnectionString)",
+    "ContainerName": "audit-logs"
+  }
+}
+```
+
+### Audit Log Schema
+
+Each audit entry is a single JSON object per line (JSON Lines format):
+
+```json
+{
+  "timestamp": "2025-12-28T12:34:56.789Z",
+  "userId": "user@example.com",
+  "eventType": "pto.request.submitted",
+  "data": { "startDate": "2025-01-15", "endDate": "2025-01-20", "days": 4 },
+  "reasoning": "User requested PTO for vacation. Policy allows 4 consecutive days. Balance sufficient.",
+  "threadId": "conv-abc123def456",
+  "correlationId": "req-789xyz",
+  "version": "1.0"
+}
+```
+
+**Key Fields:**
+- `timestamp`: UTC timestamp (ISO 8601 with Z suffix)
+- `userId`: From JWT token claims (Azure AD)
+- `eventType`: Hierarchical event name (e.g., `pto.request.submitted`)
+- `data`: Structured event data (JSON object)
+- `reasoning`: AI agent decision reasoning or user action description
+- `threadId`: Conversation thread ID (from Cosmos DB)
+- `correlationId`: Request correlation ID for distributed tracing
+- `version`: Schema version for backward compatibility
+
+### Health Checks
+
+The backend includes Blob Storage health checks:
+
+```bash
+# Check all health checks
+curl http://localhost:5000/health
+# Response: Healthy (includes storage, database, and other checks)
+
+# Check readiness (storage + database only)
+curl http://localhost:5000/ready
+# Response: Healthy (verifies Blob Storage connectivity)
+```
+
+### Unit Tests
+
+Run audit logger unit tests:
+
+```bash
+cd HRAgent.Api.Tests
+dotnet test --filter "FullyQualifiedName~AuditLoggerTests"
+# 5 tests: null validation, configuration validation, query functionality, field inclusion
+```
+
 ## Next Steps
 
 - ✅ **Story 1.1**: Initialize backend and frontend projects (COMPLETE)
 - ✅ **Story 1.2**: Configure .NET Aspire orchestration (COMPLETE)
 - ✅ **Story 1.3**: Set up Azure AD authentication - backend (COMPLETE)
+- ✅ **Story 1.6**: Configure Blob Storage for audit logs (COMPLETE)
 - **Story 1.4**: Set up Azure AD authentication - frontend (MSAL.js)
-- **Story 1.5-1.6**: Configure Cosmos DB and Blob Storage
+- **Story 1.5**: Configure Cosmos DB serverless connection
 - **Story 2.x**: Implement conversational interface with Microsoft Agent Framework
 
 ## Contributing
