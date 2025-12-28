@@ -3,7 +3,10 @@ using Microsoft.Identity.Web;
 using MongoDB.Driver;
 using HRAgent.Api.Data;
 using HRAgent.Api.Services;
+using HRAgent.Api.Clients;
 using System.Text.Json;
+using Polly;
+using Polly.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,6 +66,79 @@ builder.Services.AddCors(options =>
 // ✅ Singleton ensures single SemaphoreSlim instance for thread safety
 builder.Services.AddSingleton<AuditLogger>();
 
+// Configure Factorial options from appsettings.json
+builder.Services.Configure<FactorialOptions>(
+    builder.Configuration.GetSection("Factorial"));
+
+// Register FactorialClient with HttpClient factory + Polly policies
+builder.Services.AddHttpClient<FactorialClient>()
+    // Timeout policy - 2 seconds per request (innermost wrapper)
+    .AddPolicyHandler((services, request) =>
+    {
+        var logger = services.GetRequiredService<ILogger<FactorialClient>>();
+        return Policy.TimeoutAsync<HttpResponseMessage>(
+            timeout: TimeSpan.FromSeconds(2),
+            onTimeoutAsync: (context, timespan, task) =>
+            {
+                logger.LogWarning("Factorial API request timeout after {Timeout}s", 
+                    timespan.TotalSeconds);
+                return Task.CompletedTask;
+            });
+    })
+    
+    // Circuit breaker policy - shared singleton instance
+    .AddPolicyHandler((services, request) =>
+    {
+        var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+        var circuitBreakerLogger = loggerFactory.CreateLogger("FactorialClient.CircuitBreaker");
+
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .Or<Polly.Timeout.TimeoutRejectedException>()
+            .CircuitBreakerAsync(
+                handledEventsAllowedBeforeBreaking: 5,
+                durationOfBreak: TimeSpan.FromSeconds(30),
+                onBreak: (outcome, duration) =>
+                {
+                    circuitBreakerLogger.LogError(
+                        "Factorial API circuit breaker OPEN for {Duration}s: {Error}",
+                        duration.TotalSeconds, 
+                        outcome.Exception?.Message ?? "Unknown error");
+                },
+                onReset: () =>
+                {
+                    circuitBreakerLogger.LogInformation(
+                        "Factorial API circuit breaker CLOSED - service recovered");
+                },
+                onHalfOpen: () =>
+                {
+                    circuitBreakerLogger.LogWarning(
+                        "Factorial API circuit breaker HALF-OPEN - testing recovery");
+                });
+    })
+    
+    // Retry policy - exponential backoff with jitter (outermost wrapper)
+    .AddPolicyHandler((services, request) =>
+    {
+        var logger = services.GetRequiredService<ILogger<FactorialClient>>();
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()  // 5xx, 408, 429
+            .Or<Polly.Timeout.TimeoutRejectedException>()  // Polly timeout
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: attempt => 
+                    TimeSpan.FromMilliseconds(Math.Pow(2, attempt) * 100)  // 100ms, 200ms, 400ms
+                    + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 50)), // Jitter ±25ms
+                onRetry: (outcome, timespan, attemptNumber, context) =>
+                {
+                    logger.LogWarning(
+                        "Factorial API retry {Attempt}/3 after {Delay}ms: {Error}",
+                        attemptNumber, 
+                        timespan.TotalMilliseconds,
+                        outcome.Exception?.Message ?? "Unknown error");
+                });
+    });
+
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -86,7 +162,8 @@ builder.Services.AddHealthChecks()
     .AddAzureBlobStorage(
         blobConnectionString,
         name: "blob-storage",
-        tags: new[] { "storage", "audit" });
+        tags: new[] { "storage", "audit" })
+    .AddCheck<FactorialHealthCheck>("factorial-api", tags: new[] { "external", "factorial" });
 
 var app = builder.Build();
 
@@ -137,7 +214,7 @@ app.UseAuthorization();
 app.MapHealthChecks("/health"); // Basic health check - all checks
 app.MapHealthChecks("/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("storage") // DB + Storage checks
+    Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("storage") || check.Tags.Contains("external") // DB + Storage + External API checks
 });
 
 var summaries = new[]
@@ -262,6 +339,27 @@ if (app.Environment.IsDevelopment())
         }
     })
     .WithName("QueryAuditLogs");
+
+    app.MapGet("/test-factorial", async (FactorialClient factorialClient) =>
+    {
+        try
+        {
+            // Test with real demo employee ID from Factorial demo environment
+            var employee = await factorialClient.GetEmployeeAsync("1779508");
+            
+            return Results.Ok(new 
+            { 
+                success = true, 
+                message = "Factorial API client configured successfully",
+                employee = employee
+            });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Factorial API test failed: {ex.Message}");
+        }
+    })
+    .WithName("TestFactorial");
 }
 
 // Query conversation by threadId (demonstrates indexed query)
