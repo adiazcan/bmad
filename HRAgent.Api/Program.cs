@@ -68,14 +68,23 @@ builder.Services.AddSingleton<AuditLogger>();
 builder.Services.AddOpenApi();
 
 // Add health checks for MongoDB and Blob Storage with connectivity verification
+var blobConnectionString = builder.Configuration.GetConnectionString("blobs") 
+    ?? builder.Configuration["BlobStorage:ConnectionString"];
+
+if (string.IsNullOrEmpty(blobConnectionString))
+{
+    throw new InvalidOperationException(
+        "Blob Storage connection string not configured. " +
+        "Ensure 'ConnectionStrings:blobs' (Aspire) or 'BlobStorage:ConnectionString' is set.");
+}
+
 builder.Services.AddHealthChecks()
     .AddMongoDb(
         sp => sp.GetRequiredService<IMongoClient>(),
         name: "mongodb",
         tags: new[] { "db", "mongodb" })
     .AddAzureBlobStorage(
-        builder.Configuration.GetConnectionString("blobs") 
-            ?? builder.Configuration["BlobStorage:ConnectionString"]!,
+        blobConnectionString,
         name: "blob-storage",
         tags: new[] { "storage", "audit" });
 

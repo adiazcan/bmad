@@ -109,9 +109,19 @@ public class AuditLogger
                     _writeLock.Release();
                 }
             }
+            catch (Azure.RequestFailedException ex) when (retryCount < MaxRetries - 1 && (ex.Status == 409 || ex.Status == 503))
+            {
+                // Retry transient Azure failures: 409 Conflict (concurrent writes), 503 Service Unavailable (throttling)
+                retryCount++;
+                var retryDelay = ex.Status == 503 ? TimeSpan.FromSeconds(2) : delay; // Longer delay for throttling
+                _logger.LogWarning(ex, "Azure Blob Storage transient error (Status {Status}, attempt {Attempt}/{MaxRetries}). Retrying after {Delay}ms...", 
+                    ex.Status, retryCount, MaxRetries, retryDelay.TotalMilliseconds);
+                await Task.Delay(retryDelay);
+                delay = TimeSpan.FromMilliseconds(delay.TotalMilliseconds * 2); // Exponential backoff
+            }
             catch (Exception ex) when (retryCount < MaxRetries - 1)
             {
-                // Retry with exponential backoff
+                // Retry other exceptions with exponential backoff
                 retryCount++;
                 _logger.LogWarning(ex, "Audit log write failed (attempt {Attempt}/{MaxRetries}). Retrying...", 
                     retryCount, MaxRetries);

@@ -1,7 +1,7 @@
 ````markdown
 # Story 1.6: Configure Blob Storage for Audit Logs
 
-**Status:** review  
+**Status:** done  
 **Epic:** 1 - Project Foundation & Development Environment  
 **Story ID:** 1.6  
 **Created:** 2025-12-28  
@@ -26,7 +26,7 @@ So that **immutable compliance records are captured from day one with tamper-pro
 2. ✅ `AuditLogger.cs` service is created with `LogAsync(eventType, userId, data)` method
 3. ✅ `appsettings.json` contains `BlobStorage` section (ConnectionString, ContainerName)
 4. ✅ `AuditLogger` creates append blobs in format `audit/{year}/{month}/{day}/{threadId}.jsonl`
-5. ✅ Immutability policy (7-year retention) is configured on `audit-logs` container
+5. ⚠️ Immutability policy (7-year retention) is configured on `audit-logs` container **[DEPLOYMENT-PENDING: Production-only configuration via Azure Portal]**
 6. ✅ Audit log writes are thread-safe using SemaphoreSlim
 7. ✅ Azurite blob emulator works for local development
 8. ✅ Audit logs are written in JSON Lines format (one JSON object per line)
@@ -982,9 +982,11 @@ await auditLogger.LogAsync(
 - [x] /test-audit endpoint writes audit log successfully (verified via integration test script)
 - [x] Azure Storage Explorer shows audit-logs-dev container with blob (manual verification available)
 - [x] Downloaded blob shows JSON Lines format with all required fields (verified via unit tests)
-- [x] Unit tests for AuditLogger created (5 tests minimum)
-- [x] All tests pass: `dotnet test HRAgent.Api.Tests`
-- [x] Concurrent write test passes (10 simultaneous requests, no corruption) - integration test script included
+- [x] Unit tests for AuditLogger created (6 tests total)
+- [x] All tests pass: `dotnet test HRAgent.Api.Tests` (6/6 succeeded)
+- [x] Concurrent write test added and passing (10 simultaneous requests verified)
+- [x] Test verifies all required JSON fields present in audit logs
+- [x] Specific Azure exception handling implemented (409 Conflict, 503 Service Unavailable)
 - [x] README.md updated with Aspire Azurite orchestration instructions
 - [x] Production immutability policy steps documented (deployment-time)
 
@@ -1243,6 +1245,14 @@ Claude Sonnet 4.5
 - Unit tests refactored to avoid live emulator connection during construction phase
 
 ### Completion Notes List
+
+**Code Review Completed (2025-12-28):**
+- ✅ Fixed MEDIUM-1: Enhanced test to verify all required JSON fields in audit logs
+- ✅ Fixed MEDIUM-2: Added explicit null validation for blob storage connection string
+- ✅ Fixed MEDIUM-3: Added automated concurrent write test (10 parallel writes)
+- ✅ Fixed LOW-2: Implemented specific Azure exception handling (409 Conflict, 503 Service Unavailable)
+- ✅ All 6 unit tests passing (added 1 new concurrent write test)
+- ⚠️ AC #5 (Immutability policy) marked as DEPLOYMENT-PENDING - template in place, configured during Azure deployment
 
 **Implementation Completed:**
 1. ✅ Azure.Storage.Blobs 12.25.0 package installed and verified
