@@ -15,8 +15,14 @@
         },
         "secretName": "factorial-api-key"
       }
-    },
-    "azureAdTenantId": {
+    },    "mongoAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{subscription-id}/resourceGroups/rg-hragent-prod/providers/Microsoft.KeyVault/vaults/kv-hragent-prod"
+        },
+        "secretName": "mongo-admin-password"
+      }
+    },    "azureAdTenantId": {
       "value": "{your-tenant-id}"
     },
     "azureAdApiClientId": {

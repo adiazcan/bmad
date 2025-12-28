@@ -56,14 +56,14 @@ infra/
   - High response time alerts (>3s)
   - 90-day data retention
 
-- **cosmos-db-mongodb.bicep**: Azure Cosmos DB for MongoDB API with autoscale
-  - Creates MongoDB-compatible database with autoscale provisioned throughput
-  - **Dev environment**: Free tier (1000 RU/s limit) OR 400-4000 RU/s autoscale
-  - **Production environment**: 2000-20000 RU/s autoscale for 200 concurrent users
-  - Configures collections with shard keys (threadId, userId) and indexes
-  - Automatic failover enabled for high availability
-  - Outputs connection string for applications
-  - MongoDB 7.0 API compatibility
+- **cosmos-db-mongodb.bicep**: Azure Cosmos DB for MongoDB vCore cluster
+  - Creates MongoDB-compatible cluster with dedicated vCore architecture
+  - **Dev environment**: M25 tier (2 vCores, 8GB RAM, 128GB storage, 1 shard)
+  - **Production environment**: M40 tier (4 vCores, 32GB RAM, 256GB storage, 2 shards with HA)
+  - True MongoDB compatibility with native drivers and tools
+  - Point-in-time restore and automatic backups
+  - MongoDB 7.0 wire protocol compatibility
+  - Horizontal scaling with sharding support
 
 - **blob-storage.bicep**: Azure Blob Storage for audit logs
   - Creates storage account with immutable containers
@@ -126,23 +126,11 @@ Edit `parameters.dev.json` or `parameters.prod.json` and update:
 ### 2. Store Secrets in Key Vault
 
 ```bash
-# Azure DocumentDB connection string
+# MongoDB administrator password (8-128 characters, strong password)
 az keyvault secret set \
   --vault-name your-keyvault \
-  --name documentdb-connection-string \
-  --value "mongodb://your-connection-string"
-
-# Blob Storage connection string
-az keyvault secret set \
-  --vault-name your-keyvault \
-  --name blobstorage-connection-string \
-  --value "DefaultEndpointsProtocol=https;AccountName=..."
-
-# Application Insights connection string
-az keyvault secret set \
-  --vault-name your-keyvault \
-  --name appinsights-connection-string \
-  --value "InstrumentationKey=..."
+  --name mongo-admin-password \
+  --value "YourStrongPassword123!"
 
 # Factorial HR API key
 az keyvault secret set \

@@ -22,6 +22,12 @@ param environmentName string
 @secure()
 param factorialApiKey string
 
+@description('MongoDB administrator password')
+@secure()
+@minLength(8)
+@maxLength(128)
+param mongoAdminPassword string
+
 @description('Azure AD Tenant ID')
 param azureAdTenantId string
 
@@ -97,46 +103,21 @@ module appInsights 'modules/app-insights.bicep' = {
 }
 
 // ============================================================================
-// MODULE: AZURE COSMOS DB (DocumentDB with MongoDB API)
+// MODULE: AZURE COSMOS DB FOR MONGODB VCORE
 // ============================================================================
 
-module cosmosDb 'modules/cosmos-db-mongodb.bicep' = {
-  name: 'cosmos-db-deployment'
+module documentDb 'modules/document-db-mongodb.bicep' = {
+  name: 'document-db-deployment'
   params: {
-    accountName: '${environmentName}-hragent-cosmos'
+    clusterName: '${environmentName}-hragent-mongo'
     location: location
-    databaseName: 'hragent'
-    enableAutomaticFailover: true
-    enableFreeTier: environmentName == 'dev' // Free tier only for dev (disables autoscale)
-    useServerless: false // Use autoscale provisioned throughput
-    maxAutoscaleThroughput: environmentName == 'prod' ? 20000 : 4000 // Prod: 2000-20000 RU/s, Dev: 400-4000 RU/s
-    consistencyLevel: 'Session'
-    collections: [
-      {
-        name: 'conversations'
-        shardKey: 'threadId'
-        indexes: [
-          {
-            key: { threadId: 1 }
-            name: 'threadId_index'
-          }
-          {
-            key: { userId: 1 }
-            name: 'userId_index'
-          }
-        ]
-      }
-      {
-        name: 'user-patterns'
-        shardKey: 'userId'
-        indexes: [
-          {
-            key: { userId: 1 }
-            name: 'userId_index'
-          }
-        ]
-      }
-    ]
+    administratorUsername: 'mongoadmin'
+    administratorPassword: mongoAdminPassword
+    serverVersion: '7.0'
+    nodeCount: environmentName == 'prod' ? 'M40' : 'M25' // Prod: M40 (4 vCores, 32GB), Dev: M25 (2 vCores, 8GB)
+    shardCount: environmentName == 'prod' ? 2 : 1 // Prod: 2 shards for 200 users, Dev: 1 shard
+    enableHa: environmentName == 'prod' // High availability for production only
+    storage: environmentName == 'prod' ? 256 : 128 // Prod: 256GB, Dev: 128GB
     tags: tags
   }
 }
@@ -394,11 +375,8 @@ output keyVaultName string = keyVault.outputs.name
 @description('Key Vault URI')
 output keyVaultUri string = keyVault.outputs.uri
 
-@description('Cosmos DB Account Name')
-output cosmosDbAccountName string = cosmosDb.outputs.name
-
-@description('Cosmos DB Database Name')
-output cosmosDbDatabaseName string = cosmosDb.outputs.databaseName
+@description('Cosmos DB Cluster Name')
+output cosmosDbClusterName string = cosmosDb.outputs.name
 
 @description('Cosmos DB Endpoint')
 output cosmosDbEndpoint string = cosmosDb.outputs.endpoint

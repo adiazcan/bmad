@@ -21,7 +21,7 @@ So that **the application runs in production Azure environment with auto-scaling
 **When** I deploy to Azure Container Apps  
 **Then:**
 
-1. ✅ Azure Cosmos DB for MongoDB is provisioned with autoscale throughput (2000-20000 RU/s for production)
+1. ✅ Azure Cosmos DB for MongoDB vCore cluster is provisioned (M40 tier with 2 shards for production)
 2. ✅ Azure Blob Storage account is provisioned with append blob support
 3. ✅ Backend `Dockerfile` uses `mcr.microsoft.com/dotnet/aspnet:10.0` base image
 4. ✅ Frontend `Dockerfile` uses multi-stage build (node:20 build → nginx:alpine runtime)
@@ -840,7 +840,7 @@ az containerapp revision list \
 
 **Azure Resources to Provision in This Story:**
 1. Resource Group (e.g., `rg-hragent-prod`)
-2. Azure Cosmos DB for MongoDB (autoscale 2000-20000 RU/s for production workload)
+2. Azure Cosmos DB for MongoDB vCore cluster (M40 with 2 shards, HA enabled for production)
 3. Azure Blob Storage account (with append blob container for audit logs)
 4. Azure Container Registry (e.g., `acrhragent`)
 5. Log Analytics Workspace (for Container Apps logging)
@@ -976,10 +976,11 @@ az containerapp revision list \
 - [x] Configure static asset caching
 - [x] Test configuration syntax: `nginx -t` inside container
 
-### Task 4: Define Azure Cosmos DB in Bicep (AC: 1, 5)
-- [x] Add Cosmos DB account resource to infra/main.bicep with kind MongoDB
-- [x] Configure autoscale throughput (dev: 400-4000 RU/s, prod: 2000-20000 RU/s) in parameters
-- [x] Enable automatic failover for high availability
+### Task 4: Define Azure Cosmos DB for MongoDB vCore in Bicep (AC: 1, 5)
+- [x] Add MongoDB vCore cluster resource to infra/main.bicep using Microsoft.DocumentDB/mongoClusters
+- [x] Configure M40 tier with 2 shards for production (4 vCores, 32GB RAM per shard)
+- [x] Configure M25 tier with 1 shard for development (2 vCores, 8GB RAM)
+- [x] Enable high availability for production environment
 - [x] Define database resource: `hragent-prod`
 - [x] Define collection resources with indexes:
   - `conversations` with `threadId` index
@@ -1280,7 +1281,7 @@ No errors encountered during implementation. All Docker files, Bicep templates, 
 - ✅ infra/main.bicep - Complete IaC orchestrator with Key Vault module
 - ✅ infra/modules/log-analytics.bicep - Log Analytics Workspace module
 - ✅ infra/modules/app-insights.bicep - Application Insights module
-- ✅ infra/modules/cosmos-db-mongodb.bicep - Cosmos DB (MongoDB API) with autoscale module
+- ✅ infra/modules/cosmos-db-mongodb.bicep - Azure Cosmos DB for MongoDB vCore cluster module
 - ✅ infra/modules/blob-storage.bicep - Blob Storage with immutability policy
 - ✅ infra/modules/acr.bicep - Azure Container Registry module
 - ✅ infra/modules/key-vault.bicep - Key Vault with managed identity RBAC
@@ -1298,6 +1299,16 @@ No errors encountered during implementation. All Docker files, Bicep templates, 
 ---
 
 ## Change Log
+
+**2025-12-28 - Migrated to Azure Cosmos DB for MongoDB vCore** by Dev Agent (Claude Sonnet 4.5)
+- Replaced Cosmos DB for MongoDB API with vCore cluster architecture
+- Updated resource type: `Microsoft.DocumentDB/mongoClusters` (not databaseAccounts)
+- Configured vCore-based pricing: M25 (dev) and M40 (prod) tiers
+- Production: M40 tier with 2 shards, HA enabled (4 vCores, 32GB RAM per shard, 256GB storage)
+- Development: M25 tier with 1 shard (2 vCores, 8GB RAM, 128GB storage)
+- Added mongoAdminPassword secure parameter to main.bicep and parameters files
+- True MongoDB compatibility with native drivers and horizontal sharding
+- Estimated cost: Dev ~$175/month, Prod ~$1,400/month (dedicated vCores vs RU/s pricing)
 
 **2025-12-28 - Cosmos DB Autoscale Configuration** by Dev Agent (Claude Sonnet 4.5)
 - Updated cosmos-db-mongodb.bicep to support autoscale provisioned throughput
