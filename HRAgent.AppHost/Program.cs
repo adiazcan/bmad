@@ -1,7 +1,14 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Add backend API project
+// Add Cosmos DB emulator with automatic container management
+var cosmos = builder.AddAzureCosmosDB("cosmos")
+    .RunAsEmulator();
+
+var database = cosmos.AddCosmosDatabase("hragent");
+
+// Add backend API project with Cosmos DB reference
 var backend = builder.AddProject<Projects.HRAgent_Api>("backend")
+    .WithReference(database) // ✅ Aspire injects connection string automatically
     .WithExternalHttpEndpoints();
 
 // Add frontend Vite app (AddNpmApp deprecated in Aspire 13.0)
