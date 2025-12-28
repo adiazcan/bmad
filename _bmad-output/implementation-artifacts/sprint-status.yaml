@@ -56,7 +56,7 @@ development_status:
   1-5-configure-azure-documentdb-and-mongodb-connection: done
   1-6-configure-blob-storage-for-audit-logs: done
   1-7-configure-factorial-hr-api-client-with-polly: done
-  1-8-deploy-infrastructure-to-azure-container-apps: review
+  1-8-deploy-infrastructure-to-azure-container-apps: done
   epic-1-retrospective: optional
 
   # Epic 2: Conversational Interface Foundation
