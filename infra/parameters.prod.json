@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "prod"
+    },
+    "location": {
+      "value": "westus2"
+    },
+    "factorialApiKey": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/{subscription-id}/resourceGroups/{rg-name}/providers/Microsoft.KeyVault/vaults/{kv-name}"
+        },
+        "secretName": "factorial-api-key"
+      }
+    },
+    "azureAdTenantId": {
+      "value": "{your-tenant-id}"
+    },
+    "azureAdApiClientId": {
+      "value": "{your-api-client-id}"
+    },
+    "azureAdUiClientId": {
+      "value": "{your-ui-client-id}"
+    },
+    "backendImageTag": {
+      "value": "latest"
+    },
+    "frontendImageTag": {
+      "value": "latest"
+    }
+  }
+}

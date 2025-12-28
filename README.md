@@ -65,6 +65,14 @@ dotnet run --launch-profile https
 - ⚡ Hot reload for both backend and frontend
 - 🎯 Foundation for Azure Container Apps deployment
 
+> **⚠️ Important: Aspire vs Production Deployment**
+> 
+> - **.NET Aspire** is for **LOCAL DEVELOPMENT ONLY** - it orchestrates services on your machine
+> - **Azure Container Apps** is for **PRODUCTION DEPLOYMENT** - it runs in the cloud
+> - Aspire configuration (HRAgent.AppHost) does NOT deploy to Azure
+> - Production uses Bicep templates (`infra/main.bicep`) to provision Azure resources
+> - Both use the same backend/frontend code, just different orchestration methods
+
 ## Alternative: Manual Startup (Development)
 
 ## Alternative: Manual Startup (Development)
@@ -730,6 +738,129 @@ dotnet test --filter "FullyQualifiedName~AuditLoggerTests"
 # 5 tests: null validation, configuration validation, query functionality, field inclusion
 ```
 
+## Azure Container Apps Deployment
+
+The application is designed for production deployment to Azure Container Apps with separate containers for backend API and frontend UI.
+
+### Prerequisites for Deployment
+
+- Azure subscription with Contributor role
+- Azure CLI installed and authenticated
+- Docker installed for building images
+- Azure resources provisioned:
+  - Azure Container Registry (ACR)
+  - Azure DocumentDB (MongoDB API)
+  - Azure Blob Storage
+  - Azure Key Vault
+  - Application Insights
+
+### Quick Deploy
+
+```bash
+# 1. Build and push Docker images to ACR
+az acr login --name your-acr-name
+
+docker build --platform linux/amd64 -t your-acr-name.azurecr.io/hragent-api:latest -f HRAgent.Api/Dockerfile .
+docker push your-acr-name.azurecr.io/hragent-api:latest
+
+docker build --platform linux/amd64 -t your-acr-name.azurecr.io/hragent-ui:latest -f hragent-ui/Dockerfile ./hragent-ui
+docker push your-acr-name.azurecr.io/hragent-ui:latest
+
+# 2. Deploy infrastructure with Bicep
+cd infra
+./deploy.sh dev westus2  # For development environment
+# OR
+./deploy.sh prod westus2  # For production environment
+```
+
+### Infrastructure Components
+
+The Bicep template (`infra/main.bicep`) creates:
+
+- **Container Apps Environment**: Managed Kubernetes for hosting containers
+- **Backend Container App**: .NET 10 API (1-10 replicas, auto-scaling on HTTP concurrency)
+- **Frontend Container App**: React UI (1-3 replicas, auto-scaling on HTTP concurrency)
+- **Log Analytics Workspace**: Centralized logging and monitoring
+- **Managed HTTPS**: Automatic SSL certificates with Let's Encrypt
+
+### Auto-Scaling Configuration
+
+**Backend API:**
+- Min replicas: 1 (always warm, <200ms response)
+- Max replicas: 10 (handles 200 concurrent users)
+- Scale trigger: >100 concurrent HTTP requests per replica
+
+**Frontend UI:**
+- Min replicas: 1 (always available)
+- Max replicas: 3 (static content serves fast)
+- Scale trigger: >200 concurrent HTTP requests per replica
+
+### CI/CD Pipeline
+
+The project includes a GitHub Actions workflow (`.github/workflows/docker-build-push.yml`) that:
+
+1. Builds Docker images for backend and frontend
+2. Pushes images to Azure Container Registry with commit SHA tags
+3. Automatically deploys to development environment on main branch pushes
+
+#### Required GitHub Secrets Setup
+
+⚠️ **MANUAL CONFIGURATION REQUIRED** - Before the CI/CD pipeline can run, you must configure these GitHub repository secrets:
+
+1. **Create Azure Service Principal:**
+   ```bash
+   az ad sp create-for-rbac \
+     --name github-actions-hragent \
+     --role Contributor \
+     --scopes /subscriptions/{subscription-id}/resourceGroups/{resource-group}
+   ```
+   This outputs: `clientId`, `clientSecret`, `tenantId`
+
+2. **Configure GitHub Secrets:** Go to GitHub repo → Settings → Secrets and variables → Actions, add:
+   - `ACR_LOGIN_SERVER`: Your ACR login server (e.g., `devhragentreg.azurecr.io`)
+   - `AZURE_CLIENT_ID`: Service principal client ID (from step 1)
+   - `AZURE_CLIENT_SECRET`: Service principal secret (from step 1)
+   - `AZURE_TENANT_ID`: Azure AD tenant ID (from step 1)
+   - `AZURE_SUBSCRIPTION_ID`: Your Azure subscription ID
+
+3. **Grant Service Principal ACR Push Permission:**
+   ```bash
+   az role assignment create \
+     --assignee {client-id} \
+     --role AcrPush \
+     --scope /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.ContainerRegistry/registries/{acr-name}
+   ```
+
+**Required GitHub Secrets:**
+- `ACR_LOGIN_SERVER`: ACR login server URL
+- `AZURE_CLIENT_ID`: Service principal client ID
+- `AZURE_CLIENT_SECRET`: Service principal secret
+- `AZURE_TENANT_ID`: Azure AD tenant ID
+- `AZURE_SUBSCRIPTION_ID`: Azure subscription ID
+
+### Deployment Documentation
+
+For detailed deployment instructions, troubleshooting, and advanced scenarios, see:
+- [Infrastructure README](infra/README.md) - Complete deployment guide
+- [Bicep Template](infra/main.bicep) - Infrastructure-as-Code definition
+- [Deployment Script](infra/deploy.sh) - Automated deployment script
+
+### Verify Deployment
+
+After deployment, verify the application:
+
+```bash
+# Get application URLs
+az deployment group show \
+  --resource-group rg-hragent-dev \
+  --name main \
+  --query properties.outputs
+
+# Test health endpoints
+curl https://{api-fqdn}/health
+curl https://{ui-fqdn}/health
+```
+
 ## Next Steps
 
 - ✅ **Story 1.1**: Initialize backend and frontend projects (COMPLETE)
@@ -737,8 +868,9 @@ dotnet test --filter "FullyQualifiedName~AuditLoggerTests"
 - ✅ **Story 1.3**: Set up Azure AD authentication - backend (COMPLETE)
 - ✅ **Story 1.5**: Configure MongoDB/Azure DocumentDB connection (COMPLETE)
 - ✅ **Story 1.6**: Configure Blob Storage for audit logs (COMPLETE)
+- ✅ **Story 1.7**: Configure Factorial HR API client with Polly (COMPLETE)
+- ✅ **Story 1.8**: Deploy infrastructure to Azure Container Apps (COMPLETE)
 - **Story 1.4**: Set up Azure AD authentication - frontend (MSAL.js)
-- **Story 1.7**: Configure Factorial HR API client with Polly
 - **Story 2.x**: Implement conversational interface with Microsoft Agent Framework
 
 ## Contributing

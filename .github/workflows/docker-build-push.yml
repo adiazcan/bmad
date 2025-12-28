@@ -1,0 +1,159 @@
+name: Docker Build and Push to ACR
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+jobs:
+  build-and-push-backend:
+    name: Build and Push Backend Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ env.AZURE_CLIENT_ID }}
+          password: ${{ env.AZURE_CLIENT_SECRET }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ACR_LOGIN_SERVER }}/hragent-api
+          tags: |
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=pr
+
+      - name: Build and push backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./HRAgent.Api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/hragent-api:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/hragent-api:buildcache,mode=max
+          platforms: linux/amd64
+
+      - name: Output image tags
+        run: echo "Backend image tags - ${{ steps.meta.outputs.tags }}"
+
+  build-and-push-frontend:
+    name: Build and Push Frontend Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ env.AZURE_CLIENT_ID }}
+          password: ${{ env.AZURE_CLIENT_SECRET }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ACR_LOGIN_SERVER }}/hragent-ui
+          tags: |
+            type=sha,prefix={{branch}}-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=pr
+
+      - name: Build and push frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./hragent-ui
+          file: ./hragent-ui/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/hragent-ui:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/hragent-ui:buildcache,mode=max
+          platforms: linux/amd64
+
+      - name: Output image tags
+        run: echo "Frontend image tags - ${{ steps.meta.outputs.tags }}"
+
+  deploy-to-dev:
+    name: Deploy to Development
+    needs: [build-and-push-backend, build-and-push-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ env.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ env.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ env.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          chmod +x ./infra/deploy.sh
+          ./infra/deploy.sh dev westus2
+
+      - name: Verify deployment
+        run: |
+          API_URL=$(az deployment group show \
+            --resource-group rg-hragent-dev \
+            --name main \
+            --query properties.outputs.apiUrl.value \
+            --output tsv)
+          
+          UI_URL=$(az deployment group show \
+            --resource-group rg-hragent-dev \
+            --name main \
+            --query properties.outputs.uiUrl.value \
+            --output tsv)
+          
+          echo "API URL: $API_URL"
+          echo "UI URL: $UI_URL"
+          
+          # Wait for services to be ready
+          sleep 30
+          
+          # Test health endpoints
+          curl -f "${API_URL}/health" || echo "API health check failed"
+          curl -f "${UI_URL}/health" || echo "UI health check failed"

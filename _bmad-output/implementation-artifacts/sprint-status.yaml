@@ -41,11 +41,13 @@ story_location: /home/adiaz/github/bmad/_bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Project Foundation & Development Environment
-  # Story 1.7 generated 2025-12-28 by SM Agent using create-story workflow (YOLO mode)
-  # - Ultimate context engine: Polly resilience (retry, circuit breaker, timeout), Factorial API integration
-  # - NFR compliance: <2% failure rate, exponential backoff + jitter, graceful degradation via circuit breaker
-  # - Integration: Azure Key Vault secrets (1.3), AuditLogger (1.6), health checks for /ready endpoint
-  # - Ready for DEV agent with comprehensive Polly patterns and Factorial API authentication
+  # Story 1.8 generated 2025-12-28 by SM Agent using create-story workflow (YOLO mode)
+  # - Ultimate context engine: Azure Container Apps deployment with Dockerfiles, auto-scaling, managed identity
+  # - Separate containers: Backend (1-10 replicas) + Frontend (1-3 replicas) for independent scaling
+  # - Multi-stage Docker builds: Backend 150MB (aspnet:10.0-alpine), Frontend 12MB (nginx:alpine)
+  # - Security: Managed identity for Key Vault, HTTPS with managed certificates, non-root containers
+  # - Monitoring: Application Insights integration, health probes, distributed tracing
+  # - Ready for DEV agent with comprehensive deployment patterns and production-ready configuration
   epic-1: in-progress
   1-1-initialize-backend-and-frontend-projects: done
   1-2-configure-net-aspire-orchestration: done
@@ -54,7 +56,7 @@ development_status:
   1-5-configure-azure-documentdb-and-mongodb-connection: done
   1-6-configure-blob-storage-for-audit-logs: done
   1-7-configure-factorial-hr-api-client-with-polly: done
-  1-8-deploy-infrastructure-to-azure-container-apps: backlog
+  1-8-deploy-infrastructure-to-azure-container-apps: review
   epic-1-retrospective: optional
 
   # Epic 2: Conversational Interface Foundation
