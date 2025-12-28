@@ -145,7 +145,8 @@ builder.Services.AddOpenApi();
 
 // Add health checks for MongoDB and Blob Storage with connectivity verification
 var blobConnectionString = builder.Configuration.GetConnectionString("blobs") 
-    ?? builder.Configuration["BlobStorage:ConnectionString"];
+    ?? builder.Configuration["BlobStorage:ConnectionString"]
+    ?? (builder.Environment.IsEnvironment("Testing") ? "UseDevelopmentStorage=true" : null);
 
 if (string.IsNullOrEmpty(blobConnectionString))
 {
@@ -167,7 +168,9 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Ensure database and collections are created with indexes
+// Ensure database and collections are created with indexes (skip in testing)
+if (!app.Environment.IsEnvironment("Testing"))
+{
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -195,6 +198,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("   Ensure MongoDB container is running or connection string is correct");
         throw;
     }
+}
 }
 
 // Configure the HTTP request pipeline.

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -15,11 +16,11 @@ namespace HRAgent.Api.Tests;
 /// Integration tests for Azure AD JWT authentication middleware.
 /// Tests verify that protected endpoints require valid JWT tokens.
 /// </summary>
-public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
+public class AuthenticationTests : IClassFixture<TestWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TestWebApplicationFactory _factory;
 
-    public AuthenticationTests(WebApplicationFactory<Program> factory)
+    public AuthenticationTests(TestWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -76,8 +77,10 @@ public class AuthenticationTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var content = await response.Content.ReadAsStringAsync();
-        Assert.Equal("Authenticated!", content);
+        var result = await response.Content.ReadFromJsonAsync<SecureEndpointResponse>();
+        Assert.NotNull(result);
+        Assert.Equal("Authenticated!", result.Message);
+        Assert.True(result.Timestamp > DateTime.UtcNow.AddSeconds(-5));
     }
 
     [Fact]
@@ -184,3 +187,6 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         return Task.FromResult(AuthenticateResult.Fail("Invalid token"));
     }
 }
+
+// Response model for /secure endpoint
+record SecureEndpointResponse(string Message, DateTime Timestamp);

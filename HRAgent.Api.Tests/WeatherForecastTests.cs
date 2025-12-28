@@ -4,11 +4,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace HRAgent.Api.Tests;
 
-public class WeatherForecastTests : IClassFixture<WebApplicationFactory<Program>>
+public class WeatherForecastTests : IClassFixture<TestWebApplicationFactory>
 {
     private readonly HttpClient _client;
 
-    public WeatherForecastTests(WebApplicationFactory<Program> factory)
+    public WeatherForecastTests(TestWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
     }
