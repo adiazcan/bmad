@@ -57,7 +57,7 @@ development_status:
   1-6-configure-blob-storage-for-audit-logs: done
   1-7-configure-factorial-hr-api-client-with-polly: done
   1-8-deploy-infrastructure-to-azure-container-apps: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # Epic 2: Conversational Interface Foundation
   epic-2: backlog
